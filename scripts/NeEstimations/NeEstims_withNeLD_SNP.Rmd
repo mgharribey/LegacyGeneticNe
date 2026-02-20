@@ -1,0 +1,586 @@
+---
+title: "NeLD estimation genetic data SNP v4"
+author: "MGH"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+      position: left
+    toc_depth: 4
+    number_sections: true
+    df_print: paged
+---
+
+The purpose of this code below is to estimate Ne with LDNe implemented in NeEstimator v2.1 (Waples and Do 2008, Do et al. 2014) for the SNPs datasets ONLY. 
+
+For this, we need first to prepare the files, from genind format and convert them into genepop files with the extension .txt. Before doing this I want to subsample SNPs datasets to create files of 1000 polymorphic SNPs with different subsets for each datasets. 
+NB: at the scale of the population, SNPs can be monomorphic (but polymorphic at the whole dataset range). 
+
+Then, I will run automatically NeEstimator using RLDNe package (from Zach Robinson, https://github.com/zakrobinson/RLDNe). For this, we need first to prepare a parameter file for each genepop file and provided in the package description. 
+
+Finally, once NeEstimator is ran, I want to extract the values estimated by LDNe. 
+The output from NeEstimator is not readable by R. So I wrote a function and a code to extract the values from all the different output files and store them in a single table with .csv. This table will allow to analyze easily the results. 
+
+Very last step, I add the correction of Ne estimates for genomic datasets (correction for unavoidable physical linkage between SNPs), based on the linear regression according the number of chromosomes, and obtained by Waples et al. 2016. 
+
+
+# Set-up
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+  eval=FALSE) 
+```
+
+```{r}
+rm(list=ls())
+setwd("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v4")
+```
+
+```{r, warning=FALSE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+
+library(graph4lg)
+library(RLDNe)
+library(adegenet)
+```
+
+# Prepare the genepop files for NeEstimator
+
+Transform genind into genepop files: either subsamps of 1000 snps, either all the SNPs if total number of SNPs is below 3000
+
+```{r}
+genind_files <- list.files("Genind_datasets/genind_FINAL/", full.names = TRUE)
+#species_to_retest <- species_to_retest[grepl("Raja|sylvestris",species_to_retest)]
+
+for (i in genind_files){
+  load(i)
+  
+  genind_data_name <- sub("\\.Rdata$", "", basename(i))
+  genind_data <- get(genind_data_name)
+  
+  genind_data_name2 <- sub("^gen_", "", genind_data_name)
+  
+  #cases when only 2 pop (a problem in the iteration of the genind_to_genepop function)
+  npop <- nPop(genind_data)
+
+  #identify non-monomorphic SNPs
+  
+  #original nb of snps
+  total_snps <- nLoc(genind_data)
+  print(paste("original nb of snps:",total_snps))
+  
+  # biallelic snps only
+  biallelic_loci <- locNames(genind_data)[genind_data@loc.n.all==2]
+  genind_data <- genind_data[, loc=biallelic_loci]
+  
+  genind_data_sep <- seppop(genind_data)
+  print(paste("nb of pop:", length(names(genind_data_sep)))) 
+  
+    for (pop in names(genind_data_sep)){
+      
+      loc_fac <- genind_data_sep[[pop]]@loc.fac
+      allele_counts <- colSums(genind_data_sep[[pop]]@tab, na.rm = TRUE)
+      mac_per_locus <- tapply(allele_counts, loc_fac, min)
+      
+      #remove non-polymorphic snps
+      poly_snps <- names(which(mac_per_locus >= 2))
+      print(paste("polymorphic snps in the pop:", length(poly_snps)))
+      
+      if (length(poly_snps) > 3000){
+        for (j in 1:5) {
+        set.seed(712 + j)  # for reproductibility
+        selected_snps <- sample(poly_snps, 1000)
+      
+        subsamp_genind_data_sep_pop <- genind_data_sep[[pop]][, loc = selected_snps]
+      
+        genind_to_genepop(subsamp_genind_data_sep_pop,output=paste0("Genepop_files/genepop_polym_by_pop/1000snps/",genind_data_name2,"_",pop,"_subset_",j,".txt"))
+      }
+        }else{
+      print(paste0("Too few polym snps to subsample in the pop: ",pop))
+    
+        #then we keep all the polymorphic snps
+        all_poly_genind_data_sep <- genind_data_sep[[pop]][, loc = poly_snps]
+        genind_to_genepop(all_poly_genind_data_sep,output=paste0("Genepop_files/genepop_polym_by_pop/full_polym_snps/",genind_data_name2,"_",pop,"_full_few_snps.txt"))
+      }
+  } 
+}
+
+```
+
+
+# Re-encoding the files 
+The genind_to_genepop() function do not provide a classical encoding of alleles for genepop files. I wrote a function to reencode them easily. 
+
+Function to use for correction
+```{r}
+corriger_genotypes <- function(ligne) {
+  # Séparer le nom de l'individu des génotypes
+  parties <- strsplit(ligne, ", ")[[1]]
+  
+  if(length(parties) < 2) return(ligne)  # Si pas de génotypes, retourner tel quel
+  
+  nom_individu <- parties[1]
+  genotypes_str <- parties[2]
+  
+  # Séparer les génotypes individuels
+  genotypes <- strsplit(genotypes_str, " ")[[1]]
+  genotypes <- genotypes[genotypes != ""]  # Enlever les espaces vides
+  
+  # Corriger chaque génotype
+  genotypes_corriges <- sapply(genotypes, function(gt) {
+    if(gt == "000000") {
+      return("0000")  # Données manquantes
+    } else if(nchar(gt) == 2) {
+      allele1 <- substr(gt, 1, 1)
+      allele2 <- substr(gt, 2, 2)
+      if(allele1 == "0") allele1 <- "01"
+      if(allele1 == "1") allele1 <- "02"
+      if(allele2 == "0") allele2 <- "01" 
+      if(allele2 == "1") allele2 <- "02"
+      
+      if(allele1 == "X") allele1 <- "01"
+      if(allele1 == "Y") allele1 <- "02"
+      if(allele2 == "X") allele2 <- "01" 
+      if(allele2 == "Y") allele2 <- "02"
+      return(paste0(allele1, allele2))
+    } else if(nchar(gt) == 4) {
+      return(gt)  # Déjà au bon format
+    }
+  })
+  
+  # Reconstituer la ligne
+  nouvelle_ligne <- paste0(nom_individu, ", ", paste(genotypes_corriges, collapse = " "))
+  return(nouvelle_ligne)
+}
+
+```
+
+
+
+```{r}
+# Script to correct the genepop format
+genepopNe_1000snps <- list.files("Genepop_files/genepop_polym_by_pop/1000snps", full.names = TRUE)
+
+for (i in genepopNe_1000snps){
+  fichier_input <- i  
+  fichier_output <- paste0("Genepop_files/genepop_polym_by_pop/1000snps_corrected/",basename(i))
+
+  # Read all the lines
+  lignes <- readLines(fichier_input, warn = FALSE)
+  
+  pop_indices <- grep("^POP", lignes, ignore.case = TRUE)
+
+  #keep the header
+  header <- lignes[1:(pop_indices[1]-1)]
+  
+  
+  # Correct line by line
+  lignes_corrigees <- character(length(lignes))
+
+  for(i in (pop_indices[1]):length(lignes)) {
+    ligne <- lignes[i]
+  
+    # If it's a line from an individual --> it has a comma
+    if(grepl(",", ligne)) {
+    lignes_corrigees[i] <- corriger_genotypes(ligne) # applying the correcting function
+    } else {
+    # Keep the other lines as they are (title, loci name, "Pop")
+      lignes_corrigees[i] <- trimws(ligne)
+    }
+  }
+
+  # Rewrite the file
+  writeLines(c(header,lignes_corrigees), fichier_output)
+
+  cat("Corrected and created file:", basename(fichier_output), "\n")
+  }
+
+```
+
+Same thing than before but for the files in the full_polym_snps/ folder
+```{r}
+# Script to correct the genepop format
+full_polym_snps <- list.files("Genepop_files/genepop_polym_by_pop/full_polym_snps/", full.names = TRUE)
+
+for (i in full_polym_snps){
+  fichier_input <- i  
+  fichier_output <- paste0("Genepop_files/genepop_polym_by_pop/full_polym_snps_corrected/",basename(i))
+
+  # Read all the lines
+  lignes <- readLines(fichier_input, warn = FALSE)
+  
+  pop_indices <- grep("^POP", lignes, ignore.case = TRUE)
+
+  #keep the header
+  header <- lignes[1:(pop_indices[1]-1)]
+  
+  
+  # Correct line by line
+  lignes_corrigees <- character(length(lignes))
+
+  for(i in (pop_indices[1]):length(lignes)) {
+    ligne <- lignes[i]
+  
+    # If it's a line from an individual --> it has a comma
+    if(grepl(",", ligne)) {
+    lignes_corrigees[i] <- corriger_genotypes(ligne) # applying the correcting function
+    } else {
+    # Keep the other lines as they are (title, loci name, "Pop")
+      lignes_corrigees[i] <- trimws(ligne)
+    }
+  }
+
+  # Rewrite the file
+  writeLines(c(header,lignes_corrigees), fichier_output)
+
+  cat("Corrected and created file:", basename(fichier_output), "\n")
+  }
+```
+
+# Prepare the param files
+
+For full snps, subsampled snps datasets, look at param_files_NeEstimator.sh. Just lauch the loop corresponding to your SNPs datasets of interest in your local terminal.
+
+RLDNe package (from Zach Robinson, https://github.com/zakrobinson/RLDNe) ask to prepare for parameter files, that corresponds to things you can click when using the GUI of NeEstimator.
+
+Here is an example of the paramater file I used:
+
+1 	* LD Method
+3 	* number of critical values
+0.02 0.05 1	* critical allele frequency values
+0	*tabular output
+1	* confidence intervals
+0 	* 0: Random mating, 1: Monogamy (LD method)
+0	* max individual to be processed per pop, 0 for no limit
+0	* Pop. range to run, given in pair. No limit if the first = 0
+0	* Loc. ranges to run, given in pairs. No limit if the 1st = 0
+OUTPUT_FILE	* output file name
+GENPOP_FILE 	* input file
+
+The code param_files_NeEstimator.sh allows to replace automatically the OUTPUT_FILE and GENPOP_FILE by the corresponding path and file names of the genepop files to estimate Ne from. One parameter file = one genepop file with one population.
+
+# Run RLDNE
+
+The param files have been written previously, now the function run_LDNe will run automatically LD method from NeEstimator using all the created paramter files.
+
+```{r run RLDNe 1000snps, eval=FALSE}
+random_mating_1000snps <- list.files("NeLD_estimation/Param_files/random_mating/1000snps/", full.names = TRUE)
+
+for (param_file in random_mating_1000snps) {
+    
+     run_LDNe(LDNe_params = param_file)
+}
+```
+
+```{r run RLDNe datasets full snps, eval=FALSE}
+random_mating_full_snps <- list.files("NeLD_estimation/Param_files/random_mating/full_snps/", full.names = TRUE)
+#random_mating_full_snps <- random_mating_full_snps[c(1:7,15,30)]#the files where I replaced the ind names (see expl below)
+
+for (param_file in random_mating_full_snps) {
+    
+     run_LDNe(LDNe_params = param_file)
+}
+```
+
+!!!! Check that the results files are of 2 ko. Otherwise, if 1ko it's usually that LDNe didn't run !!!!
+
+In particular I had some issues with individuals' names that were too long. So replace them by hand in the corresponding Genepop file and rerun rLDNe! 
+
+# Gather the results in a tab
+
+
+Here, I'm going to create a single tab containing the estimates of Ne from NeEstimator. For now, we have one file for each population, in format .txt and not readable in R. So we cannot access the values of Ne unless we open each file one by one. The following code allows to read directly these results files and transform them into a .csv table readable and exploitable directly in R. 
+
+## subsamp SNPs
+
+Here I'm extracting the values from the folder "/Results/random_mating/1000snps". So for populations with the different subsets of 1000 snps. 
+
+```{r}
+#function to extract values in the NeEstimator output
+extract_values <- function(line) {
+  values <- unlist(strsplit(line, "\\s+"))
+  values <- values[values != ""]
+}
+```
+
+
+```{r}
+# Info about your run of LDNe in NeEstimator
+nb_crit_val=4
+Filter = c("0,05", "0,02", "No_Singl", "No_filter")
+#you could also add monogamy or random mating
+
+#Table where every info is going to be kept
+Ne_estim_1000_SNPs <- matrix(NA, ncol=9, nrow=0)
+colnames(Ne_estim_1000_SNPs) <- c("Dataset","Pop","Subset","MAF","NeLD","JK_CI_down","JK_CI_up","Overall_LD_r2","Expected_LD_r2")
+
+#Path to the files
+full_subsamp_1000snps_files <- list.files("NeLD_estimation/Results/random_mating/1000snps", full.names = TRUE)
+
+for (i in full_subsamp_1000snps_files) {
+
+      text_file=i
+
+      lines <- readLines(text_file)
+
+      #Lines with interesting data
+      start_index <- grep("Lowest Allele Frequency Used", lines)
+      end_index <- grep("Ending time:", lines)
+
+      #Get interesting lines
+      table_lines <- lines[(start_index + 4):(end_index - 4)]
+
+      #Remove lines not interesting
+      table_lines <- table_lines[table_lines != ""]
+
+      #Extract values
+      estimated_Ne <- extract_values(table_lines[5])
+      JK_CI_down <- extract_values(table_lines[9])
+      JK_CI_up <- extract_values(table_lines[10])
+      Overall_LD_r2 <- extract_values(table_lines[3])
+      Expected_LD_r2 <- extract_values(table_lines[4])
+      
+      #Store info in a tab
+      #Get dataset name
+      parts <- strsplit(basename(text_file), "_")[[1]]
+      Dataset <- paste(parts[1:4], collapse = "_")
+      #Population name
+      Pop=paste(parts[5:max(5, length(parts) - 2)], collapse = "_")
+      #subset nb
+      Subset=str_extract(basename(text_file), "(?<=_)[0-9]+(?=\\.txt)")
+      
+      # ADD all this + Ne info for each MAF threshold
+      Ne_estim_1000_SNPs <- rbind(Ne_estim_1000_SNPs,
+                                  data.frame(Dataset = rep(Dataset,nb_crit_val),
+                                             Pop = rep(Pop,nb_crit_val), 
+                                             Subset = rep(Subset,nb_crit_val),
+                                             MAF = Filter,
+                                             NeLD = tail(estimated_Ne, nb_crit_val),
+                                             JK_CI_down = tail(JK_CI_down, nb_crit_val),
+                                             JK_CI_up = tail(JK_CI_up, nb_crit_val),
+                                             Overall_LD_r2 = tail(Overall_LD_r2, nb_crit_val),
+                                             Expected_LD_r2 = tail(Expected_LD_r2, nb_crit_val)
+                                             ))
+      
+}
+
+#cleaning
+rm(end_index,start_index,estimated_Ne,JK_CI_down,JK_CI_up,lines,table_lines,text_file)
+
+# get table in good shape
+Ne_estim_1000_SNPs <- as.data.frame(Ne_estim_1000_SNPs) %>%
+  mutate(across(c("NeLD","JK_CI_down","JK_CI_up","Overall_LD_r2","Expected_LD_r2"), as.numeric))#careful turn Inf values in NA
+Ne_estim_1000_SNPs$Marker_type <- "snps"
+
+
+```
+
+Save the full dataset from NeLD_estimation/Results/random_mating/1000snps
+```{r}
+write.csv(Ne_estim_1000_SNPs,file="NeLD_estimation/snps_NeLD_all_subset_1000snps_all_Pcrit.csv", row.names=FALSE)
+```
+
+We now have extracted the results from the tables provided by NeEstimator. It remains that we have for each population, 5 values for the 5 different subsets of 1000 snps. As described in Waples 2024 (Practical application of LD method), we can calculate the harmonic mean between these 5 values to get a more robust estimate of this Ne.
+
+
+## Harmonic mean between subsets of SNPs
+
+We are going to look for only the No_Singl values, that are filtered singletons values (as recommended by Waples 2024). 
+
+In this harmonic mean, the infinite values are replaced by 999999, as suggested by Waples 2024.
+
+```{r}
+#function to calculate harmonic mean
+harmonic_mean <- function(x) {
+  n <- length(x)
+  x[is.na(x)] <- 999999 #NA means Infinite
+  if(sum(x == 999999) >= 4) { #if 4 or 5 Infinite from the 5 subsets then we put an Infinite for this pop
+    return(999999)
+  }
+  return(n / sum(1 / x))
+}
+```
+
+Get that mean for each population. 
+
+```{r}
+#Ne_estim_1000_SNPs <- read.csv("NeLD_estimation/snps_NeLD_all_subset_1000snps_all_Pcrit.csv")
+
+Ne_estim_1000_SNPs_Nosingl <- Ne_estim_1000_SNPs %>%
+                                  filter(MAF=="No_Singl") %>% 
+                                  group_by(Dataset,Pop) %>% 
+                                  summarize(NeLD = harmonic_mean(NeLD),
+                                            JK_CI_down = harmonic_mean(JK_CI_down),
+                                            JK_CI_up = harmonic_mean(JK_CI_up),
+                                            Overall_LD_r2=harmonic_mean(Overall_LD_r2),
+                                            Expected_LD_r2=harmonic_mean(Expected_LD_r2))
+
+Ne_estim_1000_SNPs_Nosingl$MAF <- "No_Singl"
+Ne_estim_1000_SNPs_Nosingl$Marker_type <- "snps"
+Ne_estim_1000_SNPs_Nosingl$Subset <- "H_mean_btw_5sub"
+
+
+ggplot(Ne_estim_1000_SNPs_Nosingl,aes(x=Dataset,y=NeLD))+
+  geom_boxplot()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  ylim(c(0,5000))
+
+```
+
+
+```{r}
+write.csv(Ne_estim_1000_SNPs_Nosingl, file="NeLD_estimation/snps_NeLD_1000snps_harm_mean_subsets_Nosingl.csv", row.names=FALSE)
+```
+
+## Full SNPs
+
+Now, we're extracting the values for the datasets with the full SNPs ie. datasets where we were not able to create 5 subsets of 1000 SNPs because we had less than 3000 SNPs in total. 
+
+```{r}
+# Info about your run of LDNe in NeEstimator
+nb_crit_val=4
+Filter = c("0,05", "0,02","No_Singl","No_filter")
+#you could also add monogamy or random mating
+
+#Table where every info is going to be kept
+Ne_estim_full_SNPs <- matrix(NA, ncol=9, nrow=0)
+colnames(Ne_estim_full_SNPs) <- c("Dataset","Pop","Subset","MAF","NeLD","JK_CI_down","JK_CI_up","Overall_LD_r2","Expected_LD_r2")
+
+#Path to the files
+full_snps_files <- list.files("NeLD_estimation/Results/random_mating/full_snps", full.names = TRUE)
+
+
+for (i in full_snps_files) {
+
+      text_file=i
+
+      lines <- readLines(text_file)
+
+      #Lines with interesting data
+      start_index <- grep("Lowest Allele Frequency Used", lines)
+      end_index <- grep("Ending time:", lines)
+
+      #Get interesting lines
+      table_lines <- lines[(start_index + 4):(end_index - 4)]
+
+      #Remove lines not interesting
+      table_lines <- table_lines[table_lines != ""]
+
+      #Extract values
+      estimated_Ne <- extract_values(table_lines[5])
+      JK_CI_down <- extract_values(table_lines[9])
+      JK_CI_up <- extract_values(table_lines[10])
+      Overall_LD_r2 <- extract_values(table_lines[3])
+      Expected_LD_r2 <- extract_values(table_lines[4])
+      
+      #Store info in a tab
+      #Get dataset name
+      parts <- strsplit(tools::file_path_sans_ext(basename(text_file)), "_")[[1]] #same line as in microsat
+      Dataset <- paste(parts[1:4], collapse = "_")
+      #Population name
+      Pop=paste(parts[5:length(parts)], collapse = "_") #same line as in microsat
+      
+      # ADD all this + Ne info for each MAF threshold
+      Ne_estim_full_SNPs <- rbind(Ne_estim_full_SNPs,
+                                  data.frame(Dataset = rep(Dataset,nb_crit_val),
+                                             Pop = rep(Pop,nb_crit_val), 
+                                             Subset = rep("All_snps",nb_crit_val),
+                                             MAF = Filter,
+                                             NeLD = tail(estimated_Ne, nb_crit_val),
+                                             JK_CI_down = tail(JK_CI_down, nb_crit_val),
+                                             JK_CI_up = tail(JK_CI_up, nb_crit_val),
+                                             Overall_LD_r2 = tail(Overall_LD_r2, nb_crit_val),
+                                             Expected_LD_r2 = tail(Expected_LD_r2, nb_crit_val)
+                                             ))
+      
+}
+
+#cleaning
+rm(end_index,start_index,estimated_Ne,JK_CI_down,JK_CI_up,lines,table_lines,text_file)
+
+# get tab in form
+Ne_estim_full_SNPs <- as.data.frame(Ne_estim_full_SNPs) %>%
+  mutate(across(c("NeLD","JK_CI_down","JK_CI_up","Overall_LD_r2","Expected_LD_r2"), as.numeric))#careful turn Inf values in NA
+Ne_estim_full_SNPs$Marker_type <- "snps"
+
+Ne_estim_full_SNPs$Pop <- sub("_full_few_snps$", "",Ne_estim_full_SNPs$Pop)
+
+```
+
+
+Let's replace the Infinite values (for now written as NA) by "999999", as done above
+
+```{r}
+#so here currently, all NA in the table corresponds to Infinite values from NeLD 
+#Careful if adding other datasets
+Ne_estim_full_SNPs <- Ne_estim_full_SNPs %>% mutate(across(everything(), ~replace_na(.x, 999999)))
+```
+
+
+And now we can save these files
+
+```{r}
+write.csv(Ne_estim_full_SNPs, file="NeLD_estimation/snps_NeLD_full_SNPs_all_Pcrit.csv")
+
+#just the files with no singletons
+Ne_estim_fullsnps_Nosingl <- Ne_estim_full_SNPs %>% filter(MAF=="No_Singl")
+write.csv(Ne_estim_fullsnps_Nosingl, file="NeLD_estimation/snps_NeLD_full_SNPs_Nosingl.csv")
+```
+
+## Merge all the results in a single table
+
+For our final table of results from NeLD with NeEstimator, we can now merge the two tables of full SNPs and harmonic mean between 5 subsets of 1000 snps. As suggested by Waples 2024, we will only look at values with a criterion value of "No singletons" (and not the other different MAF values although they are available if needed). 
+
+```{r}
+#Ne_estim_fullsnps_Nosingl <- read.csv("with_NeEstimator/snps_NeLD_full_SNPs_Nosingl.csv")
+
+#Ne_estim_1000_SNPs_Nosingl <- read.csv("with_NeEstimator/snps_NeLD_1000snps_by_pop_Nosingl.csv")
+
+Ne_full_results_Nosingl <- bind_rows(Ne_estim_1000_SNPs_Nosingl,
+                                     Ne_estim_fullsnps_Nosingl)
+
+Ne_full_results_Nosingl$MAF <- "No_Singl"
+
+write.csv(Ne_full_results_Nosingl, file="NeLD_estimation/snps_NeLD_FINAL_NoSingl_randommating.csv")
+```
+
+
+# Correction for physical linkage
+
+In genomic-scale datasets, with thousands of markers, LD method is downwardly biased due to physical linkage between markers that occurs on the same chromosomes. If a map is available, it is possible to restrict comparison to pairs of loci on different chromosomes but in our case we do not have it for all our datasets. 
+
+The other way to deal with that issue is to correct the values: Waples et al. 2016, showed that $Ne(estim)/true Ne = 0.098 + 0.219 ∗ ln(C)$, where C is the number of chromosomes	of	size	100 cM.
+
+```{r}
+nb_chrom_by_species <- read.csv("NeLD_estimation/Number_chrom_by_species.csv", sep=";") #for each species, the nmber of chrom is stored in that file
+
+# Ne_full_results_Nosingl <- #read.csv("with_NeEstimator/snps_NeLD_FINAL_nosingl.csv")
+
+# add a column with the corrected Ne
+# the common column between the 2 tabs --> Species
+Ne_full_results_Nosingl$Species <- sapply(strsplit(Ne_full_results_Nosingl$Dataset, "_"), function(x) paste(x[1:2], collapse=" ")) 
+
+Ne_full_results_Nosingl <- Ne_full_results_Nosingl %>% 
+                              left_join(nb_chrom_by_species, by="Species") %>%
+                              mutate(NeLD_corrected=NeLD/(0.098+0.219*log(Nb_chrom))) %>%
+                              select(-Nb_chrom)
+
+```
+
+Okay so now we can save this table
+
+```{r}
+head(Ne_full_results_Nosingl)
+
+write.csv(Ne_full_results_Nosingl, file="NeLD_estimation/snps_NeLD_FINAL_nosingl_with_physlink_correction.csv")
+```
+
+By hand replace the corrected value when NeLD is infinite (replaced by 999999) --> only one pop of pinus sylvestris is concerned by this here. 
+
+Now you have your estimate of Ne with SNP datasets! Let's analyze that, also regarding to the other summary statistics!
+

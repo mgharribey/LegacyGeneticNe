@@ -1,0 +1,194 @@
+---
+title: "SNPs_filtering_on_splitted_pop_full"
+author: "MGH"
+date: "2024-11-18"
+output: html_document
+---
+
+
+Objective: code for ensuring good quality of SNP datasets, here automatized for different datasets, with a scope of estimating NeLD. A complementary doc with the part of code in bash is also be available. 
+
+See these reference that we used to set up the different thresholds of filtering: 
+- https://evomics.org/learning/population-and-speciation-genomics/2020-population-and-speciation-genomics/first-steps-in-genomic-data-analysis/#ex1
+- Hemstrom et al. 2024, Next-Generation Data Filtering in the Genomics Era 
+- Waples 2024, Practical Application of the Linkage Disequilibrium Method for Estimating Contemporary Effective Population Size: A Review 
+
+# Set-up
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+  eval=FALSE) 
+```
+
+```{r}
+rm(list=ls(all=TRUE))
+#!!!!! Change directory according your own directory !!!!!
+setwd("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v2")
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ggplot2)
+
+library(purrr)
+
+library(vcfR)
+library(adegenet)
+```
+
+
+# 1. Get the mean read depth for the raw vcf files
+
+
+```{r}
+files_list <- list.files("raw_data/snps/", pattern = "\\.vcf$", full.names = TRUE)
+
+basename_list <- sub("^raw_data/snps/", "", files_list)
+basename_list <- sub("\\.vcf", "", basename_list)
+
+stats_DP <- matrix(ncol=3,nrow=0)
+
+pdf("raw_vcf_DP_hist.pdf")
+
+for (i in basename_list){
+
+  load(paste0("raw_data/snps/R_objects/vcfR_", i,".Rdata"))
+  assign("vcf_file",get(ls()[startsWith(ls(), "vcf_")]))
+  
+  recode <- vcf_file %>% 
+      extract_gt_tidy(format_fields = c("GT","DP", "GQ")) %>% 
+      mutate(gt_GT = dplyr::recode(gt_GT, 
+                               '0|1' = '0/1', '1|0' = '1/0', 
+                               '1|1' = '1/1', '0|0' = '0/0'),
+          Indiv = Indiv)
+
+  # Load info in a table
+  mean_DP <- mean(recode$gt_DP,na.rm=T)
+  max_DP <- max(recode$gt_DP,na.rm=T)
+
+  stats_DP <- rbind(stats_DP,c(vcf_file= i,
+                               mean_DP= mean_DP,
+                               max_DP= max_DP))
+  
+  #if info on DP in the vcf, plot the histogram
+  if (!is.na(mean_DP)){
+    print(hist(recode$gt_DP, main=i))
+  } 
+  
+  
+  #cleaning
+  rm(list=ls()[startsWith(ls(), "vcf_")])
+  rm(recode,mean_DP,max_DP)
+} 
+
+dev.off()
+
+stats_DP <- as.data.frame(stats_DP)
+stats_DP$mean_DP <- as.numeric(stats_DP$mean_DP)
+stats_DP$max_DP <- as.numeric(stats_DP$max_DP)
+stats_DP$twice_mean_DP <- round(stats_DP$mean_DP*2,2)
+
+write.table(stats_DP, row.names = FALSE, quote=FALSE, col.names = FALSE,
+          file="mean_RD_raw_vcf_full.txt")
+```
+
+
+
+# 2. Filtering
+
+Launch the code "Filtering_snps_full.sh"
+
+It's possible to change the parameters of filtering, see in the code file, at the top of the document.
+
+
+# 3. Graphical representations
+
+```{r}
+files_list <- list.files("raw_data/snps/", pattern = "\\.vcf$", full.names = TRUE)
+basename_list <- sub("^raw_data/snps/", "", files_list)
+basename_list <- sub("\\.vcf", "", basename_list)
+```
+
+
+## Before filtering on missing data
+
+Graph after quality filtering to check for missing data, per SNPs and per individuals
+
+```{r}
+#set-up the function
+graph_representation_missingness <- function(i){
+path="filtered_data/MIN_DP_6_MD_SNPs_0.2_Ind_0.2_full_vcf/" #change that if you have set different parameters
+  
+ #variant missingness
+var_miss <- read_delim(paste0(path,"intermed_files/",i,"_geno_qual.lmiss"), delim = "\t",
+                       col_names = c("chr", "pos", "nchr", "nfiltered", "nmiss", "fmiss"), skip = 1)
+g <- ggplot(var_miss, aes(fmiss)) + geom_density(fill = "dodgerblue1", colour = "black", alpha = 0.3) + theme_light() +
+          xlim(0,1)+
+          ggtitle(paste(i,"\n %MD per SNPs across ind"))
+print(g)
+ggsave(g,file=paste0(path,"graphics/before_MD_filtering/per_snps_",i,".pdf"))
+summary(var_miss$fmiss)
+
+#individual missingness
+ind_miss  <- read_delim(paste0(path,"intermed_files/",i,"_geno_qual.imiss"), delim = "\t",
+                        col_names = c("ind", "ndata", "nfiltered", "nmiss", "fmiss"), skip = 1)
+q <- ggplot(ind_miss, aes(fmiss)) + geom_histogram(fill = "dodgerblue1", colour = "black", alpha = 0.3) + theme_light() +
+          xlim(0,1)+
+          ggtitle(paste(i,"\n %MD per ind across SNPs"))
+print(q)
+ggsave(q,file=paste0(path,"graphics/before_MD_filtering/per_ind_",i,".pdf"))
+summary(ind_miss$fmiss) 
+}
+```
+
+Let's run the code to get our graph, go check in folder "graphics"
+```{r}
+#apply it to all our files (with purr package to avoid loop for)
+walk(basename_list,graph_representation_missingness)
+```
+
+
+
+## After filtering: MAF profile
+
+After all the steps of filtering, plotting of the MAF in our final datasets
+
+```{r}
+graph_MAF <- function(i){
+path="filtered_data/MIN_DP_6_MD_SNPs_0.2_Ind_0.2_full_vcf/"
+  
+#MAF
+var_freq <- read_delim(paste0(path,"intermed_files/",i,"_MD_snps_ind.frq"), delim = "\t",
+                       col_names = c("chr", "pos", "nalleles", "nchr", "a1", "a2"), skip = 1)
+  var_freq$maf <- var_freq %>% select(a1, a2) %>% apply(1, function(z) min(z))
+  p <- ggplot(var_freq, aes(maf)) + geom_histogram(bins=200, binwidth = 0.01, colour="black", fill="blue") + theme_light() +
+    ggtitle(paste("MAF - ",i))
+  print(p)
+ggsave(p,file=paste0(path,"graphics/after_MD_filtering/MAF_",i,".pdf"))
+
+#MAC
+var_count <- read_delim(paste0(path,"intermed_files/",i,"_MD_snps_ind.frq.count"), delim = "\t",
+                       col_names = c("chr", "pos", "nalleles", "nchr", "a1", "a2"), skip = 1)
+  var_count <- separate(var_count, a1, c("all_a1","a1"), sep=":")
+  var_count <- separate(var_count, a2, c("all_a2","a2"), sep=":")
+  var_count$a1 <- as.numeric(var_count$a1)
+  var_count$a2 <- as.numeric(var_count$a2)
+  var_count$mac <- var_count %>% select(a1, a2) %>% apply(1, function(z) min(z))
+  
+  p <- ggplot(var_count, aes(mac)) + geom_histogram(bins=200, binwidth = 0.01, colour="black", fill="blue") + theme_light() +
+    ggtitle(paste("MAC - ",i))
+  print(p)
+ggsave(p,file=paste0(path,"graphics/after_MD_filtering/MAC_",i,".pdf"))
+
+
+}
+```
+
+```{r}
+#apply it to all our files (with purr package to avoid loop for)
+walk(basename_list,graph_MAF)
+```
+
+

@@ -1,0 +1,313 @@
+---
+title: "Summary statistics fro SSR datasets"
+author: "MGH"
+date: "2024-10-25"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+      position: left
+    toc_depth: 4
+    number_sections: true
+    df_print: paged
+---
+
+
+The objective here is to estimate genetic summary statistics for our different datasets in the SSR format.
+All datasets have been converted into a genind format.
+
+Calculation are splitted into two parts:
+- Estimates within a population: He, Ho, Ar, Fis
+- Pairwise estimates and then averaging for a given population within a dataset: Fst, Gst', Jost's D
+
+
+# Set-up
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+  eval=FALSE) 
+```
+
+
+```{r}
+rm(list=ls(all=TRUE))
+#!!!!! Change directory according your own directory !!!!!
+setwd("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v2")
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ggplot2)
+library(purrr)
+library(corrplot)
+library(GGally)
+
+#specific to pop genetics
+library(adegenet)
+library(factoextra)
+library(pegas)
+library(poppr)
+library(hierfstat)
+library(mmod)
+```
+
+
+Set up
+```{r}
+microsat_files_list <- list.files("FINAL_datasets/microsat/", pattern = "\\.Rdata$", full.names = TRUE)
+marker_type="microsat"
+
+
+# A problem with this dataset because one of the pop has one microsat less
+microsat_files_list <- microsat_files_list[microsat_files_list != "FINAL_datasets/microsat/genind_Antirrhinum_charidemi_HeuertzForrest_2024.Rdata"]
+
+```
+
+
+# Summary stats by pop
+
+```{r}
+Summary_div_stats <- as.data.frame(matrix(ncol=8,nrow=0))
+colnames(Summary_div_stats) <- c("Pop","n","Hobs","Hexp","Ar","Fis","Dataset","Marker_type")
+
+for (i in microsat_files_list){
+  load(i)
+  genind_data_name <- sub("\\.Rdata$", "", basename(i))
+  genind_data <- get(genind_data_name)
+  
+  Sum <- summary(genind_data)
+
+  #Heterozygosity
+  Hobs <- t(sapply(seppop(genind_data,drop=TRUE), function(ls) summary(ls)$Hobs))
+  Hexp <- t(sapply(seppop(genind_data,drop=TRUE), function(ls) summary(ls)$Hexp))
+  
+  Hobs.pop <- apply(Hobs, 1, mean, na.rm=TRUE)
+  Hexp.pop <- apply(Hexp, 1, mean, na.rm=TRUE)
+  #adding population names
+  names(Hobs.pop) <- levels(genind_data@pop)
+  names(Hexp.pop) <- levels(genind_data@pop)
+
+  #Allelic Richness
+  Richness <- hierfstat::allelic.richness(genind_data, diploid=TRUE)
+
+  Richness_mean <- colMeans(as.matrix(Richness$Ar),na.rm=TRUE)
+  Richness_mean
+
+  #Fis
+  Fis <- t(sapply(seppop(genind_data), function(ls) basic.stats(ls)$perloc$Fis))
+  Fis.pop <- rowMeans(as.matrix(Fis),na.rm=TRUE)
+
+  #Store in a dataframe
+  Div.stats.1dataset <- data.frame(Pop = names(Hobs.pop),
+                        n = Sum$n.by.pop,
+                        Hobs = Hobs.pop,
+                        Hexp = Hexp.pop,
+                        Ar = Richness_mean,
+                        Fis = Fis.pop)
+  Div.stats.1dataset$Dataset <- genind_data_name
+  Div.stats.1dataset$Marker_type <- marker_type
+
+  #Keep all in a common dataframe
+  Summary_div_stats <- rbind(Summary_div_stats,
+                           Div.stats.1dataset)
+  
+  #cleaning
+  rm(Div.stats.1dataset,Fis,Fis.pop,genind_data,genind_data_name,Hexp,Hexp.pop,Hobs,Hobs.pop,Richness,Richness_mean,Sum)
+}
+```
+
+Add by hand Antirrhinum charidemi dataset (I do it separately because there is 1 pop that has one locus less than the 2 others)
+
+```{r}
+i="FINAL_datasets/microsat/genind_Antirrhinum_charidemi_HeuertzForrest_2024.Rdata"
+
+load(i)
+  genind_data_name <- sub("\\.Rdata$", "", basename(i))
+  genind_data <- get(genind_data_name)
+  
+  Sum <- summary(genind_data)
+
+  #Heterozygosity
+  Hobs <- sapply(seppop(genind_data,drop=TRUE), function(ls) summary(ls)$Hobs)
+  Hexp <- sapply(seppop(genind_data,drop=TRUE), function(ls) summary(ls)$Hexp)
+
+  Hobs.pop <- lapply(Hobs, mean, na.rm=TRUE)
+   Hexp.pop <- lapply(Hexp, mean, na.rm=TRUE)
+   
+  #Allelic Richness
+  Richness <- hierfstat::allelic.richness(genind_data, diploid=TRUE)
+
+  Richness_mean <- colMeans(as.matrix(Richness$Ar),na.rm=TRUE)
+  Richness_mean
+
+  #Fis
+  Fis <- t(sapply(seppop(genind_data), function(ls) basic.stats(ls)$perloc$Fis))
+  Fis.pop <- rowMeans(as.matrix(Fis),na.rm=TRUE)
+
+  #Store in a dataframe
+  Div.stats.1dataset <- data.frame(Pop = names(Hobs.pop),
+                        n = Sum$n.by.pop,
+                        Hobs = unlist(Hobs.pop),
+                        Hexp = unlist(Hexp.pop),
+                        Ar = Richness_mean,
+                        Fis = Fis.pop)
+  Div.stats.1dataset$Dataset <- genind_data_name
+  Div.stats.1dataset$Marker_type <- marker_type
+  
+    #Keep all in a common dataframe
+  Summary_div_stats <- rbind(Summary_div_stats,
+                           Div.stats.1dataset)
+  
+  #cleaning
+  rm(Div.stats.1dataset,Fis,Fis.pop,genind_data,genind_data_name,Hexp,Hexp.pop,Hobs,Hobs.pop,Richness,Richness_mean,Sum)
+```
+
+
+Make sure to remove the remaining pop with less than 20 ind. 
+
+```{r}
+Summary_div_stats <- Summary_div_stats %>%
+                        filter(n >= 20)
+#or use a if in the loop earlier
+```
+
+Save the file
+
+```{r}
+write.csv(Summary_div_stats, file="FINAL_datasets/microsat_summary_div_stats.csv")
+```
+
+
+# Pairwise values for differentiation stats
+
+## Get the pairwise values
+
+Let's save everything in a list ()
+```{r}
+microsat_files_list <- list.files("FINAL_datasets/microsat/", pattern = "\\.Rdata$", full.names = TRUE)
+Pairwise_values_by_dataset <- list()
+
+for (i in microsat_files_list){
+  genind_data_name <- sub("\\.Rdata$", "", basename(i)) #extract the name of the dataset
+  genind_data <- get(genind_data_name) #assign the studied dataset to a single name
+
+  # Pairwise values
+  fst <- genet.dist(genind_data, diploid=TRUE, method="WC84")
+  gst_pr_nei <- pairwise_Gst_Nei(genind_data)
+  jost_D <- pairwise_D(genind_data)
+
+  # Keep the pairwise matrices in a list
+  Pairwise_matrices_stats_diff <- list("fst" = fst,
+                                     "gst_pr_nei" = gst_pr_nei,
+                                     "jost_D" = jost_D)
+  # Save that list in a list to keep data for all datasets
+  Pairwise_values_by_dataset[[genind_data_name]] <- Pairwise_matrices_stats_diff
+  
+  # Cleaning
+  rm(genind_data, genind_data_name, fst, gst_pr_nei, jost_D, Pairwise_matrices_stats_diff)
+}
+```
+
+## TO ADD OR MODIFY A dataset
+```{r}
+load("FINAL_datasets/microsat_Pairwise_values_by_dataset.Rdata")
+```
+
+
+```{r}
+#remaining_ssrs_files <- c("FINAL_datasets/microsat/genind_Ursus_arctos_Kopatz_2021.Rdata")
+remaining_ssrs_files <- c("FINAL_datasets/microsat/genind_Coenagrion_mercuriale_Leveque_2024.Rdata")
+
+for (i in remaining_ssrs_files){
+  load(i)#load dataset
+  print(i)
+  genind_data_name <- sub("\\.Rdata$", "", basename(i)) #extract the name of the dataset
+  dataset_all_pop <- get(genind_data_name) #assign the studied dataset to a single name
+  
+  # Pairwise values
+  fst <- genet.dist(dataset_all_pop, diploid=TRUE, method="WC84")
+  
+  #from mmod package
+  gst_pr_nei <- pairwise_Gst_Nei(dataset_all_pop)
+  jost_D <- pairwise_D(dataset_all_pop)
+
+  # Keep the pairwise matrices in a list
+  Pairwise_matrices_stats_diff <- list(
+                                      "fst" = fst,#,
+                                     "gst_pr_nei" = gst_pr_nei,#,
+                                     "jost_D" = jost_D)
+  
+  # Save that list in a list to keep data for all datasets
+  Pairwise_values_by_dataset_microsat[[genind_data_name]] <- Pairwise_matrices_stats_diff
+  
+  # Cleaning
+  rm(dataset_all_pop, genind_data_name, jost_D, gst_pr_nei, fst, Pairwise_matrices_stats_diff)
+}
+```
+Save all
+```{r}
+save(Pairwise_values_by_dataset_microsat,file="FINAL_datasets/microsat_Pairwise_values_by_dataset.Rdata")
+```
+
+## Average pairwise values for a given pop
+
+```{r}
+load("FINAL_datasets/microsat_Pairwise_values_by_dataset.Rdata")
+mean_Pairwise_values_by_pop_microsat <- matrix(ncol=4, nrow=0)
+
+for (i in names(Pairwise_values_by_dataset_microsat)){
+  stats_diff <- c("fst","gst_pr_nei","jost_D")
+  for (measure in stats_diff){
+    
+    labels <- attr(Pairwise_values_by_dataset_microsat[[i]][[measure]], "Labels")
+    values <- as.matrix(Pairwise_values_by_dataset_microsat[[i]][[measure]])
+    
+    for (pop in labels){
+      all_pairwise_1pop <- values[pop, ]
+      all_pairwise_1pop <- all_pairwise_1pop[names(all_pairwise_1pop) != pop] #to remove pop itself
+      
+      mean_Pairwise_values_by_pop_microsat <- rbind(mean_Pairwise_values_by_pop_microsat,
+                                           c(Dataset = i,
+                                              Diff_stat = measure, 
+                                              Pop = pop,
+                                              mean_pairwise = mean(all_pairwise_1pop)))
+    }
+    
+  }
+}
+
+mean_Pairwise_values_by_pop_microsat <- as.data.frame(mean_Pairwise_values_by_pop_microsat)
+mean_Pairwise_values_by_pop_microsat$mean_pairwise <- as.numeric(mean_Pairwise_values_by_pop_microsat$mean_pairwise)
+
+mean_Pairwise_values_by_pop_microsat <- mean_Pairwise_values_by_pop_microsat %>%
+                                                pivot_wider(names_from = Diff_stat, values_from = mean_pairwise)
+```
+
+Add this to the summary diversity statistics 
+
+```{r}
+Summary_div_diff_stats_microsat <- Summary_div_stats %>% left_join(mean_Pairwise_values_by_pop_microsat %>% select(-Dataset), by="Pop")
+```
+
+
+# Save the data
+
+```{r}
+#cleaning
+rm(list=ls()[startsWith(ls(), "genind_")])
+
+#renaming
+Pairwise_values_by_dataset_microsat <- Pairwise_values_by_dataset
+
+#saving
+save(Pairwise_values_by_dataset_microsat, file="FINAL_datasets/microsat_Pairwise_values_by_dataset.Rdata")
+write.table(Summary_div_diff_stats_microsat, file="FINAL_datasets/microsat_summary_div_diff_stats_by_pop.csv")
+
+```
+
+
+

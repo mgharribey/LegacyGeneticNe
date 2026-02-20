@@ -1,0 +1,256 @@
+---
+title: "NeLD estimates with NeEstimator for microsatellites' datasets"
+author: "MGH"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+      position: left
+    toc_depth: 4
+    number_sections: true
+    df_print: paged
+---
+
+The purpose of this code below is to estimate Ne with LDNe implemented in NeEstimator v2.1 (Waples and Do 2008, Do et al. 2014) for the SSRs datasets ONLY (see another code .Rmd for the SNPs datasets). 
+
+For this, we need first to prepare the files, from genind object in R and convert them into genepop files with the extension .txt or .gen.
+
+Then, I will run automatically NeEstimator (not by hand using the GUI) using RLDNe package (from Zach Robinson, https://github.com/zakrobinson/RLDNe). For this, we need first to prepare a parameter file for each genepop file and provided in the package description. 
+
+Finally, once NeEstimator is ran, I want to extract the values estimated by LDNe. 
+The output from NeEstimator is not readable by R. So I wrote a function and a code to extract the values from all the different output files and store them in a single table with .csv. This table will allow to analyze easily the results. 
+
+
+# Set-up
+
+```{r}
+rm(list=ls(all=TRUE))
+#!!!!! Change directory according your own directory !!!!!
+setwd("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/NeEstimations")
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+library(graph4lg)
+library(RLDNe)
+library(dartR)
+
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+```
+
+
+# Get a genepop file from an R genind object
+
+All my SSRs datasets are stored as genind object (obtained from previous step of my workflow). There is one file by dataset, with the assignation of individuals to population. 
+
+I will create genepop files, with one file per population. 
+
+```{r genind to genepop, eval=FALSE}
+
+full_microsat_files <- list.files("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v2/FINAL_datasets/microsat", full.names = TRUE)
+#if for one dataset
+#i="C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v2/FINAL_datasets/microsat/genind_Coenagrion_mercuriale_Leveque_2024.Rdata"
+
+for (i in full_microsat_files){
+  load(i)
+  genind_data_name <- sub("\\.Rdata$", "", basename(i))
+  genind_data <- get(genind_data_name)
+  
+  genind_data_name2 <- sub("^genind_","",genind_data_name)
+  
+  genind_sep <- seppop(genind_data)
+  
+  for (pop in names(genind_sep)){
+  #first of all - filter singletons and also non polymorphic - FILTERING DID NOT WORK
+  #allele_tab <- tab(genind_sep[[pop]])
+  #allele_count <- apply(allele_tab, 2, function(x) sum(x > 0, na.rm = TRUE))
+  
+  #alleles_to_keep <- allele_count[allele_count != 1]
+  #filtered_genind <- genind_sep[[pop]]
+  #filtered_genind@tab <- filtered_genind@tab[, alleles_to_keep]
+  
+  genind_to_genepop(genind_sep[[pop]],output=paste0("genpop_files/microsat/",genind_data_name2,"_",pop,".txt"))
+  }
+}
+```
+
+!!!!!! BE CAREFUL !!!!!!!
+!!!!!! Remove the spaces by hand in the files name (see for Canis lupus)
+
+Also there are some datasets with a problem --> see the coding of missing data
+
+I advise to look at least at one file per dataset to make sure that everything is okay
+Look at the missing data encoding, the number of locus, if there are some issues with the name of individuals...
+
+# Prepare the param files
+
+Look at param_files_NeEstimator.sh. Just lauch the loop corresponding to the case of microsatellite datasets in your local terminal. 
+
+RLDNe package (from Zach Robinson, https://github.com/zakrobinson/RLDNe) ask to prepare for parameter files, that corresponds to things you can click when using the GUI of NeEstimator. 
+
+Here is an example of the paramater file I used:
+
+1 	* LD Method
+3 	* number of critical values
+0.02 0.05 1	* critical allele frequency values
+0	*tabular output
+1	* confidence intervals
+0 	* 0: Random mating, 1: Monogamy (LD method)
+0	* max individual to be processed per pop, 0 for no limit
+0	* Pop. range to run, given in pair. No limit if the first = 0
+0	* Loc. ranges to run, given in pairs. No limit if the 1st = 0
+OUTPUT_FILE	* output file name
+GENPOP_FILE 	* input file
+*
+
+The code param_files_NeEstimator.sh allows to replace automatically the OUTPUT_FILE and GENPOP_FILE by the corresponding path and file names of the genepop files to estimate Ne from. One parameter file = one genepop file with one population.
+
+# Run LDNe to have the Ne estimates
+
+
+```{r run RLDNe, eval=FALSE}
+full_microsat_files <- list.files("with_NeEstimator/Param_files/microsat", full.names = TRUE)
+
+for (param_file in full_microsat_files) {
+    
+     run_LDNe(LDNe_params = param_file)
+}
+```
+
+To check quickly if it all ran well --> go in the corresponding /Results folder and make sure that every files is of 2ko = one population for each file of result
+If for example, 1ko files = probably didn't run --> open the file and check the error
+
+I had so trouble with some individual sampling names that were too long (mostly Ursus arctos dataset) + some NA values that were not well encoded (so modified by hand, mostly Rana arvalis)
+
+# Gather the values in a single tab
+
+```{r}
+#function to extract values in R
+extract_values <- function(line) {
+  values <- unlist(strsplit(line, "\\s+"))
+  values <- values[values != ""]
+}
+```
+
+If the code below show errors while running --> the problem might come from the previous step when NeEstimator was run 
+
+```{r}
+#Path to the files
+full_microsat_files <- list.files("with_NeEstimator/Results/microsat", full.names = TRUE) #####TBM x2
+
+# Info about your run of LDNe in NeEstimator
+nb_crit_val=4
+Filter = c("0,05", "0,02","No_singl","No_filter")
+#you could also add monogamy or random mating
+
+#Table where every info is going to be kept
+Ne_estim_microsat <- matrix(NA, ncol=9, nrow=0)
+colnames(Ne_estim_microsat) <- c("Dataset","Pop","Subset","MAF","NeLD","JK_CI_down","JK_CI_up","Overall_LD_r2","Expected_LD_r2")
+
+
+for (i in full_microsat_files) {
+
+      text_file=i
+
+      lines <- readLines(text_file)
+
+      #Lines with interesting data
+      start_index <- grep("Lowest Allele Frequency Used", lines)
+      end_index <- grep("Ending time:", lines)
+
+      #Get interesting lines
+      table_lines <- lines[(start_index + 4):(end_index - 4)]
+
+      #Remove lines not interesting
+      table_lines <- table_lines[table_lines != ""]
+
+      #Extract values
+      estimated_Ne <- extract_values(table_lines[5])
+      JK_CI_down <- extract_values(table_lines[9])
+      JK_CI_up <- extract_values(table_lines[10])
+      Overall_LD_r2 <- extract_values(table_lines[3])
+      Expected_LD_r2 <- extract_values(table_lines[4])
+      
+      #Store info in a tab
+      #Get dataset name
+      parts <- strsplit(tools::file_path_sans_ext(basename(text_file)), "_")[[1]]
+      Dataset <- paste(parts[1:4], collapse = "_")
+      #Population name
+      Pop=paste(parts[5:length(parts)], collapse = "_")
+      
+      
+      # ADD all this + Ne info for each MAF threshold
+      Ne_estim_microsat <- rbind(Ne_estim_microsat,
+                                  data.frame(Dataset = rep(Dataset,nb_crit_val),
+                                             Pop = rep(Pop,nb_crit_val), 
+                                             Subset = rep("All_ssrs",nb_crit_val),
+                                             MAF = Filter,
+                                             NeLD = tail(estimated_Ne, nb_crit_val),
+                                             JK_CI_down = tail(JK_CI_down, nb_crit_val),
+                                             JK_CI_up = tail(JK_CI_up, nb_crit_val),
+                                             Overall_LD_r2 = tail(Overall_LD_r2, nb_crit_val),
+                                             Expected_LD_r2 = tail(Expected_LD_r2, nb_crit_val)
+                                             ))
+      
+}
+
+#cleaning
+rm(end_index,start_index,estimated_Ne,JK_CI_down,JK_CI_up,lines,table_lines,text_file)
+
+# get tab in form
+Ne_estim_microsat <- as.data.frame(Ne_estim_microsat) %>%
+  mutate(across(c("NeLD","JK_CI_down","JK_CI_up","Overall_LD_r2","Expected_LD_r2"), as.numeric))#careful turn Inf values in NA
+Ne_estim_microsat$Marker_type <- "microsat"
+
+```
+
+You can chek your newly created dataset
+
+```{r}
+head(Ne_estim_microsat)
+```
+All the Na values in the NeLD and JK_CI_up and down are in fact infinite estimates. Let's transform them into 99999 as suggested by Waples 2024 (Practical application of the LD method). 
+
+```{r}
+Ne_estim_microsat <- Ne_estim_microsat %>%
+                        mutate(NeLD=if_else(is.na(NeLD),999999,NeLD),
+                               JK_CI_down=if_else(is.na(JK_CI_down),999999,JK_CI_down),
+                               JK_CI_up=if_else(is.na(JK_CI_up),999999,JK_CI_up))
+```
+
+
+# Graph and storing of the data
+
+We are going to look for only the No_filter values, that are in fact filtered singletons values
+
+As suggested by Waples 2024 (Practical application of the LD method), the infinite values are set to 99999. 
+
+```{r}
+# Quick look at the values
+Ne_estim_microsat %>% filter(MAF=="No_filter") %>% 
+                    ggplot(aes(x=Dataset,y=NeLD))+
+  geom_boxplot()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle("No Pcrit filtering")
+
+Ne_estim_microsat %>% filter(MAF=="No_singl") %>% 
+                    ggplot(aes(x=Dataset,y=NeLD))+
+  geom_boxplot()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  ggtitle("Pcrit = No singletons")
+
+```
+
+Save this table to do the analyses on the result later!
+
+```{r}
+write.csv(Ne_estim_microsat %>% filter(MAF=="No_singl"), file="with_NeEstimator/microsat_NeLD_nosingl.csv", row.names = FALSE)
+
+write.csv(Ne_estim_microsat, file="with_NeEstimator/microsat_NeLD_whole_Pcrit.csv", row.names = FALSE)
+```
+

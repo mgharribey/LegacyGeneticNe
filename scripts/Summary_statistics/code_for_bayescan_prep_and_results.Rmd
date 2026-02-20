@@ -1,0 +1,483 @@
+---
+title: "Calculate Bayescan Fst"
+author: "MGH"
+date: "2025-03-13"
+output: html_document
+---
+
+Here the point of this code is to prepare the files to run Bayescan (that will be done on the cluster though!)
+
+So my idea is to get genepop files from my genind objects containing full information of the different datasets and then use a .sh code with the PGDSpider pilot to transform these Genepop files into Bayescan format files. 
+Here, we need one Genepop file with all the studied population of a given dataset. 
+
+Then I'll put everything on the cluster and run the code. 
+
+Finally, after downloading the result files on the cluster, I need a code to gather everything automatically in a single table of result. 
+
+# Set-up
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+  eval=FALSE) 
+```
+
+```{r}
+rm(list=ls(all=TRUE))
+#!!!!! Change directory according your own directory !!!!!
+setwd("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Fst_bayescan")
+```
+
+```{r}
+library(graph4lg)
+library(adegenet)
+library(dartR)
+library(RLDNe)
+
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+```
+
+# 1. Get a genepop file from an R genind object
+
+## SNPs
+
+This has already beeen done, check in the file 3.Filt_pop_assignation_transfo_genepop.Rmd
+
+## SSR
+
+Select the files to convert into genepop
+```{r}
+full_microsat_files <- list.files("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v2/FINAL_datasets/microsat", full.names = TRUE)
+
+#if has already been done for some datasets
+#full_microsat_files <- full_microsat_files[-c(1:6)]
+#full_microsat_files
+```
+
+Convert from genind object in R to Genepop files (outside of R)
+```{r}
+for (i in full_microsat_files){
+  load(i)
+  
+  genind_data_name <- sub("\\.Rdata$", "", basename(i))
+  genind_data <- get(genind_data_name)
+  
+  genind_data_name2 <- sub("^genind_","",genind_data_name)
+  print(genind_data_name2)
+  
+  genind_to_genepop(genind_data,output=paste0("genepop_files/microsat/",genind_data_name2,".txt"))
+  
+}
+```
+
+For only one dataset for example
+```{r}
+i="C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v2/FINAL_datasets/microsat/genind_Cypripedium_calceolus_Gargiulo_2023.Rdata"
+  load(i)
+  
+  genind_data_name <- sub("\\.Rdata$", "", basename(i))
+  genind_data <- get(genind_data_name)
+  
+  genind_data_name2 <- sub("^genind_","",genind_data_name)
+  print(genind_data_name2)
+ 
+#does not work 
+genind_to_genepop_2pop(genind_data,output=paste0("genepop_files/microsat/",genind_data_name2,".txt"))
+```
+
+Okay so the code does not work here because the dataset has only 2 populations and there is a problem with that in the function !! So I slightly modify it for it to work!
+
+```{r}
+genind_to_genepop_2pop <- function(x, output = "data.frame"){
+
+  # Check whether 'x' is a genind object
+  if(!inherits(x, "genind")){
+    stop("Input 'x' must be an object of class 'genind'.")
+  }
+
+  # Get genetic data from x@tab
+  data <- x@tab
+  # Get pop_names
+  pop_names <- x@pop
+
+  ### Return a message if there is only one population
+  if(length(unique(pop_names)) == 1){
+    message("There is only one population in your dataset")
+    unique_pop <- TRUE
+  } else {
+    unique_pop <- FALSE
+  }
+
+  # If the individuals are not ordered by populations, they are reordered
+  # with their populations in alphabetic order.
+  if(!all(pop_names == rep(pop_names[-which(duplicated(pop_names))],
+                           times = table(pop_names)[unique(pop_names)]))){
+    message("Individuals in the input data were not ordered, they have
+          been ordered by populations and populations in alphabetic order
+          for the conversion.")
+    pop_names <- as.character(x@pop)[order(as.character(x@pop))]
+    data <- x@tab[order(as.character(x@pop)),]
+  } else {
+
+    pop_names <- as.character(x@pop)[order(as.character(x@pop))]
+    data <- x@tab[order(as.character(x@pop)),]
+
+  }
+
+  ### Identify the type of markers and modify SNPs data for GENEPOP usage
+  if(all(unlist(unique(x@all.names)) %in% c("A", "T", "C", "G"))){
+    m_type <- "snp"
+    message("Your dataset is treated as a SNP dataset.
+            Alleles initially coded A, T, C, G were respectively coded
+            01, 02, 03 and 04")
+
+    colnames(data) <- gsub(colnames(data),pattern=".A",replacement=".01")
+    colnames(data) <- gsub(colnames(data),pattern=".T",replacement=".02")
+    colnames(data) <- gsub(colnames(data),pattern=".C",replacement=".03")
+    colnames(data) <- gsub(colnames(data),pattern=".G",replacement=".04")
+    #####
+  } else {
+    m_type <- "msat"
+  }
+
+  # Get loci names
+  loci_names_l <- x@loc.fac
+  # Create an empty data.frame
+  loc_all <- data.frame(col = colnames(data))
+  # Check whether the names of the locus.allele combination are well formatted
+  # with a '.' between the locus and the allele names.
+  if(all(stringr::str_count(colnames(data), "\\.") == 1) != TRUE){
+    stop("The columns' names of x@tab must be of form 'locus.allele' with only 1
+         '.' between locus and allele")
+  }
+  # Separate the locus and the allele
+  loc_all <- tidyr::separate(loc_all, col = 1, sep = "\\.",
+                             into = c("locus", "allele"))
+
+  # Avoid problems when allele names have not the same number of characters
+  max_all_chr <- max(nchar(loc_all$allele))
+  for(i in 1:nrow(loc_all)){
+    name_all_chr <- nchar(loc_all[i, "allele"])
+    loc_all[i, "allele"] <- ifelse(name_all_chr < max_all_chr,
+                                   paste0(rep("0", times = max_all_chr - name_all_chr),
+                                          loc_all[i, "allele"]),
+                                   loc_all[i, "allele"])
+  }
+
+
+  loci_names <- as.character(loci_names_l[-which(duplicated(loci_names_l))])
+  n.loci <- length(loci_names_l[-which(duplicated(loci_names_l))]  )
+
+  # Create the data.frame data_gpop which will contain the genetic data
+  # The first column contains the ID of each individual
+  data_gpop <- data.frame(id = paste(pop_names, "_", row.names(data), ",",
+                                     sep = ""))
+
+  data_gpop[] <- lapply(data_gpop, gsub, pattern = " ", replacement = "")
+
+  # The loop will run over all the loci
+  for (i in 1:n.loci){
+    # loc is the locus considered
+    loc <- loci_names[i]
+    # a is an empty vector which will contain the two alleles coding of all
+    # individuals over all the loci
+    a <- c()
+    # The loop will run over all the individuals
+    for (j in 1:nrow(data)){
+      # Get the column corresponding to the locus
+      col_loc <- which(loc_all[, 'locus'] == loc)
+      # Get the locus.allele at which individual j is homozygote or heterozygote
+      hom <- which(data[j,col_loc] == 2)
+      het <- which(data[j,col_loc] == 1)
+
+      # If homozygote, then copy the code of the allele twice
+      if(length(hom) != 0){
+        a[j] <- paste(loc_all[col_loc[hom], 'allele'],
+                      loc_all[col_loc[hom], 'allele'],
+                      sep = "")
+        # If heterozygote, then copy the code of the two alleles of ind j
+        # the lower code number is the first
+      } else if (length(het) != 0){
+
+        if (as.character(loc_all[col_loc[het[1]], 'allele']) <
+            as.character(loc_all[col_loc[het[2]], 'allele'])){
+
+          a[j] <- paste(loc_all[col_loc[het[1]], 'allele'],
+                        loc_all[col_loc[het[2]], 'allele'],
+                        sep = "")
+        } else {
+          a[j] <- paste(loc_all[col_loc[het[2]], 'allele'],
+                        loc_all[col_loc[het[1]], 'allele'],
+                        sep = "")
+        }
+
+      } else {
+        # If missing data, set 000000 or 0000
+        if(nchar(loc_all[1, 'allele'] == 6)){
+          a[j] <- "000000"
+        } else {
+          a[j] <- "0000"
+        }
+        ###
+      }
+
+    }
+
+    # For each locus, add the next column to data_gpop
+    data_gpop <- cbind(data_gpop, a)
+  }
+
+  # Then, set the colnames
+  colnames(data_gpop) <- c("ID", as.character(loci_names))
+
+  # Convert all the columns as characters
+  data_gpop[ , ] <- lapply(data_gpop[ , ], as.character)
+
+  # Add the pop_names
+  # Distinguish the case where there is only one pop
+  if(unique_pop){
+
+    # Create data_gpop2 whose first line only is "POP"
+    data_gpop2 <- rbind(c("Pop",rep("", n.loci)), data_gpop)
+
+
+  } else {
+
+
+    # Get the rows' numbers of the end of the populations
+    num_end_pop <- c()
+    for  (i in (1:(length(pop_names) - 1))){
+      if (pop_names[i] != pop_names[i + 1]){
+        num_end_pop[i] <- i
+      } else {
+        num_end_pop[i] <- 0
+      }
+    }
+    num_end_pop <- which(num_end_pop != 0)
+
+
+    # Create data_gpop2 whose first line only is "POP"
+    data_gpop2 <- rbind(c("Pop",rep("", n.loci)), data_gpop[1:num_end_pop[1], ])
+    
+    ############################################################################
+    #My personal modif!! 
+    # Then, add the rows of each population, one line with "POP", etc..
+    #for (i in 1:(length(num_end_pop)-1)){
+    #  data_gpop2 <- rbind(data_gpop2, c("Pop", rep("", n.loci)),
+    #                      data_gpop[(num_end_pop[i]+1):num_end_pop[i+1], ])
+    #}
+    ############################################################################
+    #So I remove that part because it creates when you have 2 populations 
+    # Indeed num_end_pop[i+1] --> NA in that case 
+    
+    # Add the last population
+    data_gpop2 <- rbind(data_gpop2, c("Pop", rep("", n.loci)),
+                        data_gpop[(num_end_pop[length(num_end_pop)]+1):nrow(data_gpop), ])
+
+  }
+
+  # The two first lines are the heading and the names of the loci
+  if(n.loci > 1){
+    data_gpop2 <- rbind(c("Conversion of an object of class 'genind' into a GENEPOP file with the package 'graph4lg'",
+                          rep("", n.loci)),
+                        c(paste(loci_names[1:(n.loci-1)],",", sep = ""),
+                          loci_names[n.loci], ""),
+                        data_gpop2)
+    colnames(data_gpop2)[2:(length(colnames(data_gpop2))-1)] <-
+      paste(colnames(data_gpop2)[2:(length(colnames(data_gpop2))-1)], ",", sep = "")
+
+  } else {
+    data_gpop2 <- rbind(c("Conversion of an object of class 'genind' into a GENEPOP file with the package 'graph4lg'",
+                          rep("", n.loci)),
+                        c(loci_names[n.loci], ""),
+                        data_gpop2)
+  }
+
+  # Output
+  if(output == "data.frame"){
+    return(data_gpop2)
+  } else if (stringr::str_sub(output,-4,-1) == ".txt") {
+    utils::write.table(data_gpop2,file = output, quote=FALSE,
+                       row.names=FALSE, col.names=FALSE)
+  } else {
+    stop("'output' parameter must be 'data.frame' (then the function returns an
+object of class data.frame) or a path and file name ending in '.txt'. In the
+          latter case, the functions creates a text file in the directory
+         specified by the path or in the current working directory when a
+         path is not specified.")
+  }
+
+}
+```
+
+
+
+# 2. Get files formated for Bayescan 
+
+Look at code_genepop2_bayescan.sh which uses an executive of PGDSpider to do so. 
+
+# 3. Run Bayescan
+
+Look at Bayescan_for_SSR.sh & Bayescan_for_SNP.sh
+Done on the cluster
+
+
+# 4. Check the results
+
+## SSR
+
+```{r}
+microsat_bayescan_list <- list.files("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Fst_bayescan/bayescan_files/microsat/", full.names = TRUE)
+microsat_bayescan_list <- sub("*.txt","",basename(microsat_bayescan_list))
+microsat_bayescan_list <- sub("^bayescan_","",microsat_bayescan_list)
+microsat_bayescan_list
+```
+
+
+```{r}
+fst_bayescan_by_pop <- matrix(ncol=6,nrow=0)
+colnames(fst_bayescan_by_pop) <- c("Dataset","Marker_type","Pop_index","Ind_from_pop","mean_Fst","median_Fst")
+marker_type="microsat"
+
+bayescan_check_algo <- matrix(ncol=6,nrow=0)
+colnames(bayescan_check_algo) <- c("Dataset","Marker_type","Nb_iterations_for_fst","Nb_pop","Accept_rate_beta","Accept_rate_ances")
+
+for (i in microsat_bayescan_list){
+  
+  # Step 1: get the population names back
+  file_path <- paste0("genepop_files/microsat/",i,".txt")
+  lines <- readLines(file_path)
+  pop_indices <- grep("^POP", lines, ignore.case = TRUE)
+  pop_names <- lines[pop_indices + 1]
+  pop_names <- sub(",.*", "", pop_names)
+
+  # Step 2: get the Fst by pop from Bayescan
+  results <- read.csv(paste0("results/microsat/bayescan_",i,".sel"), sep="")
+  
+  pdf(file = paste0("results/graphics_microsat/Post_distrib_",i,".pdf"))
+  
+  for (j in 1:(ncol(results)-1)){
+    #plot the posterior distribution
+    plot(density(results[,j+1]), xlab=pop_names[j],main=paste("Fst",pop_names[j],"posterior distribution"))
+    par(new = TRUE)  #to add the hist on the previous graph
+    hist(results[, j+1], col = rgb(1, 0, 0, 0.5), border = "white", 
+          xlab = "", ylab = "", main = "", axes = FALSE)
+
+    #check convergence was okay
+    plot(results[,j+1], xlab=pop_names[j],main=paste("MCM Chain",pop_names[j]))
+    
+    #main info in a tab
+    fst_bayescan_by_pop <- rbind(fst_bayescan_by_pop,
+                             c(i,marker_type,j,pop_names[j],
+                               mean(results[,j+1]),
+                               median(results[,j+1])))
+  }
+  dev.off()
+  
+  
+  # Check the algorithm went well
+  acrte <- read.csv(paste0("results/microsat/bayescan_",i,"_AccRte.txt"), sep="")
+  
+  beta_acrte <- mean(acrte$beta)
+  ances_acrte <- mean(acrte$ances)
+  nb_iter <- dim(results)[1]
+  nb_pop <- dim(results)[2]-1
+  bayescan_check_algo <- rbind(bayescan_check_algo,
+                               c(i,marker_type,nb_iter,nb_pop,beta_acrte,ances_acrte))
+  
+  
+  #cleaning
+  rm(nb_iter,nb_pop,beta_acrte,ances_acrte)
+}
+```
+
+Okay so I checked the distribution plots --> it all seems beautiful! So I will use the mean Fst for all the populations
+
+With the acceptance rate, it seems okay, some are below the 25%. 
+
+For the number of iterations, here we have one of 10 iterations (it's from the settings) --> so with 5000 here, it means that we have 50000 in total
+
+To add the Fst to my analyses, I will have to take back the population name from the individual name I got. I will do so by hand to save time, using the column with the name of first individual of the corresponding population.
+
+```{r}
+write.csv(bayescan_check_algo, file="results/microsat_check_Bayescan_algo.csv")
+write.csv(fst_bayescan_by_pop, file="results/microsat_results_Fst_Bayescan.csv")
+```
+
+
+## SNPs
+
+```{r}
+snps_bayescan_list <- list.files("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Fst_bayescan/bayescan_files/1000snps_corrected/", full.names = TRUE)
+snps_bayescan_list <- sub("*.txt","",basename(snps_bayescan_list))
+snps_bayescan_list <- sub("^bayescan_","",snps_bayescan_list)
+snps_bayescan_list
+```
+
+
+Get back the name of populations (assume same order as in the genepop files)
+```{r}
+fst_bayescan_by_pop <- matrix(ncol=6,nrow=0)
+colnames(fst_bayescan_by_pop) <- c("Dataset","Marker_type","Pop_index","Ind_from_pop","mean_Fst","median_Fst")
+marker_type="snps"
+
+bayescan_check_algo <- matrix(ncol=6,nrow=0)
+colnames(bayescan_check_algo) <- c("Dataset","Marker_type","Nb_iterations_for_fst","Nb_pop","Accept_rate_beta","Accept_rate_ances")
+
+for (i in snps_bayescan_list){
+  
+  # Step 1: get the population names back
+  file_path <- paste0("genepop_files/1000snps_corrected/",i,".txt")
+  lines <- readLines(file_path)
+  pop_indices <- grep("^POP", lines, ignore.case = TRUE)
+  pop_names <- lines[pop_indices + 1]
+  pop_names <- sub(",.*", "", pop_names)
+
+  # Step 2: get the Fst by pop from Bayescan
+  results <- read.csv(paste0("results/snps/bayescan_",i,".sel"), sep="")
+  
+  pdf(file = paste0("results/graphics_snps/Post_distrib_",i,".pdf"))
+  
+  for (j in 1:(ncol(results)-1)){
+    #plot the posterior distribution
+    plot(density(results[,j+1]), xlab=pop_names[j],main=paste("Fst",pop_names[j],"posterior distribution"))
+    par(new = TRUE)  #to add the hist on the previous graph
+    hist(results[, j+1], col = rgb(1, 0, 0, 0.5), border = "white", 
+          xlab = "", ylab = "", main = "", axes = FALSE)
+
+    #check convergence was okay
+    plot(results[,j+1], xlab=pop_names[j],main=paste("MCM Chain",pop_names[j]))
+    
+    #main info in a tab
+    fst_bayescan_by_pop <- rbind(fst_bayescan_by_pop,
+                             c(i,marker_type,j,pop_names[j],
+                               mean(results[,j+1]),
+                               median(results[,j+1])))
+  }
+  dev.off()
+  
+  
+  # Check the algorithm went well
+  acrte <- read.csv(paste0("results/snps/bayescan_",i,"_AccRte.txt"), sep="")
+  
+  beta_acrte <- mean(acrte$beta)
+  ances_acrte <- mean(acrte$ances)
+  nb_iter <- dim(results)[1]
+  nb_pop <- dim(results)[2]-1
+  bayescan_check_algo <- rbind(bayescan_check_algo,
+                               c(i,marker_type,nb_iter,nb_pop,beta_acrte,ances_acrte))
+  
+  
+  #cleaning
+  rm(nb_iter,nb_pop,beta_acrte,ances_acrte)
+}
+```
+
+Checked the distribution plots --> in the vast majority of populations, distribution of values seems normal. So I can use the mean Fst for all the populations. 
+
+For the Markov Chains, seem good too, with a good repartition of points, mean the chains converge well
+
+The acceptance rates are between 0.2 and 0.25 in a lot cases (both for beta and alpha)... Foll & Gaggiotti suggest to have between 0.25 and 0.45 acceptance rates, but not a lot of details in the bibliography. In the case of low acceptance rates, it would mean that most moves are rejected because they correspond to areas of low posterior probability. 
+
+Don't forget to add by hand the name of populations, using the first individual name of each population. 

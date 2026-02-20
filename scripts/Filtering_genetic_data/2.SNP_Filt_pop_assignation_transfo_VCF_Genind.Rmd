@@ -1,0 +1,481 @@
+---
+title: "Preparation of SNP datasets as Genind datasets"
+author: "MGH"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+The main objective of this code is to obtain usable Genind files from VCF data with the assignation of individuals to populations. This work was mainly a case-by-case work according to the dataset. Indeed, we don't have the same scale of information and neither the same type of information between the species. The approach is described in details in the corresponding part of the Material & Methods, "Population delimitation". 
+
+VCF files used here were obtained after the filtering pipeline (look in 1.SNP_filtering_on_full_files.Rmd for the details). 
+
+We also previously looked at published information from the different studies of the studied datasets (including the original VCF) to create a file containing the list of individuals and their "original" population assignation in the second column, usually corresponding to the sampling location.
+We checked below if some sampling locations should be gathered together as one single population. 
+
+
+# Set-up
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+  eval=FALSE) 
+```
+
+```{r}
+rm(list=ls(all=TRUE))
+#!!!!! Change directory according your own directory !!!!!
+setwd("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v4")
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ggplot2)
+
+library(snpR)
+
+library(vcfR)
+library(adegenet)
+
+library(graph4lg)
+```
+
+
+# Upload vcf as genind
+
+```{r}
+path="vcf_datasets_from_Galaxy/"
+filtered_files <- list.files(path, pattern = "\\.vcf$", full.names = TRUE)
+basename_files <- sub(path, "", filtered_files)
+basename_files <- sub("\\_mdIND_GQ_DP_biallelicSNPs_SNPmd_MAC_mdIND.vcf", "", basename_files)
+basename_files
+```
+
+So 13 datasets from 11 species. 
+
+```{r}
+vcf_2_genind <- function(i){
+      
+      vcfR_name <-  paste0("Genind_datasets/vcfR/", i,".Rdata")
+      gen_name <-  paste0("Genind_datasets/genind_from_vcf_Galaxy/", i,".Rdata")
+    
+      path2vcf <- paste0(path,i,"_mdIND_GQ_DP_biallelicSNPs_SNPmd_MAC_mdIND.vcf")
+        
+    if (! file.exists(gen_name)){ #don't run code again if file already exists
+      print(i)
+      
+      #load the vcf
+      vcf_file <- read.vcfR(path2vcf)
+    
+      #conversion into genlight object
+      gen_file <- vcfR2genind(vcf_file)
+    
+      #rename it
+      assign(paste0("vcf_",i), vcf_file)
+      assign(paste0("gen_",i),gen_file)
+
+      #Save the genind object
+      save(list = paste0("vcf_",i),file=vcfR_name)
+      save(list = paste0("gen_",i),file=gen_name)
+    }
+}
+```
+
+```{r}
+#apply it to all our files (with purr package to avoid loop for)
+walk(basename_files,vcf_2_genind)
+```
+
+
+
+# Correction by removing all loci with Ho > 0.6
+
+Loci with an Ho>0.6 can be the sign of paralog loci. For this reason we will remove them now. 
+
+```{r}
+genind_datasets <- list.files("Genind_datasets/genind_from_vcf_Galaxy/", pattern="\\.Rdata$", full.names = TRUE)
+genind_datasets <- sub("^Genind_datasets/genind_from_vcf_Galaxy/", "", genind_datasets)
+genind_datasets <- sub("\\.Rdata", "", genind_datasets)
+
+for (i in genind_datasets){
+  if (file.exists(paste0("Genind_datasets/genind_filtering_Ho_R/",i,".Rdata"))){
+    print(paste(i,": already filtered"))
+  }else{
+    #load the corresponding the genind
+    genind_name <- paste0("Genind_datasets/genind_from_vcf_Galaxy/",i,".Rdata")
+    loaded <- load(genind_name)
+    genind_obj <- get(loaded)
+    
+    #number of locus at the beginning
+    print(nLoc(genind_obj))
+    
+    #identify the locus to remove
+    Ho_locus <- summary(genind_obj)$Hobs
+    loci_to_keep <- names(Ho_locus[Ho_locus<0.6])
+    print(length(loci_to_keep))
+    
+    #filter the locus
+    genind_obj_filtered <- genind_obj[, loc = loci_to_keep]
+    
+    print(nLoc(genind_obj_filtered))
+  
+    #save it
+    assign(paste0("gen_",i), genind_obj_filtered)
+    save(list=paste0("gen_",i),file=paste0("Genind_datasets/genind_filtering_Ho_R/",i,".Rdata"))
+  }
+}
+```
+```{r}
+rm(list=ls())
+```
+
+# Assign the individuals to their final population 
+
+```{r}
+genind_datasets <- list.files("Genind_datasets/genind_filtering_Ho_R/", pattern="\\.Rdata$", full.names = TRUE)
+genind_datasets <- sub("^Genind_datasets/genind_filtering_Ho_R/", "", genind_datasets)
+genind_datasets <- sub("\\.Rdata", "", genind_datasets)
+
+for (i in genind_datasets){
+  #load the corresponding the genind
+  genind_name <- paste0("Genind_datasets/genind_filtering_Ho_R/",i,".Rdata")
+  loaded <- load(genind_name)
+  genind_obj <- get(loaded)
+  
+  #get the individuals list
+  ind_list <- data.frame(Ind = indNames(genind_obj))
+  
+  #load the population assignation for individuals before the filtering
+  pop_assignation <- read.csv(paste0("../Genetic_data_v3/snps_population_assignation/Ind_Pop_list_",i,".txt"))
+  pop_assignation <- pop_assignation %>% mutate(Ind = gsub("1_1_", "1_", Ind))
+
+  #A dataset with Ind of the new genind and its pop
+  ind_list <- ind_list %>%
+      mutate(order = row_number()) %>%  #Index column
+      left_join(pop_assignation, by = "Ind") %>%
+      arrange(order) %>%  #make sure same order is kept
+      select(-order) 
+  
+    #Put that into the genind and save
+    pop(genind_obj) <- as.factor(ind_list$Pop_final)
+    print(popNames(genind_obj))
+    assign(paste0("gen_",i), genind_obj)
+    save(list=paste0("gen_",i),file=paste0("Genind_datasets/genind_with_pop_ass_FINAL/gen_pop_ass_",i,".Rdata"))
+}
+
+```
+
+# Last filtering step: Remove populations with n<18
+
+```{r}
+genind_datasets <- list.files("Genind_datasets/genind_with_pop_ass_FINAL/", pattern="\\.Rdata$", full.names = TRUE)
+genind_datasets <- sub("^Genind_datasets/genind_with_pop_ass_FINAL/gen_pop_ass_", "", genind_datasets)
+genind_datasets <- sub("\\.Rdata", "", genind_datasets)
+
+for (i in genind_datasets){
+  #load the corresponding the genind
+  genind_name <- paste0("Genind_datasets/genind_with_pop_ass_FINAL/gen_pop_ass_",i,".Rdata")
+  loaded <- load(genind_name)
+  genind_obj <- get(loaded)
+  
+  #get the name of populations with more than 20 individuals
+  pop_counts <- table(genind_obj@pop)
+  pops_to_keep <- names(pop_counts[pop_counts >= 18])
+  
+  #filter the genind
+  genind_obj_filtered <- genind_obj[pop(genind_obj) %in% pops_to_keep, ]
+  print(table(genind_obj_filtered@pop))
+  
+  #save it
+  assign(paste0("gen_",i), genind_obj_filtered)
+  save(list=paste0("gen_",i),file=paste0("Genind_datasets/genind_FINAL/gen_",i,".Rdata"))
+
+}
+```
+
+
+
+# Transformation from genind to genepop
+
+Convert from genind object in R to genepop files (outside of R)
+
+```{r}
+genind_snps_files <- list.files("Genind_datasets/genind_FINAL/", full.names = TRUE)
+
+for (i in genind_snps_files){
+  load(i)
+  
+  genind_data_name <- sub("\\.Rdata$", "", basename(i))
+  genind_data <- get(genind_data_name)
+  
+  
+  #cases when only 2 pop (a problem in the iteration of the genind_to_genepop function)
+  npop <- nPop(genind_data)
+  print(npop)
+  
+  if (npop == 2){
+    #create a false pop
+    temp_individuals <- genind_data[1:5]
+    pop(temp_individuals) <- factor(rep("Temp_pop", 5))
+    
+    genind_data <- repool(genind_data, temp_individuals)
+    print("REMOVE BY HAND THE ARTIFICIALLY CREATED POP")
+  }
+    
+  #convert
+  genepop_name <- sub("^gen_", "", genind_data_name)
+  genind_to_genepop(genind_data,output=paste0("Genepop_files/full_snps/",genepop_name,".txt"))
+    
+}
+
+```
+
+
+A mistake for Symphonia because some alleles are not biallelic
+```{r}
+#genind_data_filtered <- genind_data[, loc = genind_data@loc.n.all > 1]
+#genind_to_genepop(genind_data_filtered,output=paste0("Genepop_files/",genepop_name,".txt"))
+```
+
+
+First of all, remove the artificially created pop in the files with 2 pop only : Barbastella barbastellus, Cypripedium calceolus and Raja clavata. 
+
+Now we have to reencode the files to make sure alleles are coded into 2-digits. 
+
+Function to use for correction
+```{r}
+corriger_genotypes <- function(ligne) {
+  # Split the name of the individual
+  parties <- strsplit(ligne, ", ")[[1]]
+  
+  if(length(parties) < 2) return(ligne)  # If no genotype, return as it is
+  
+  nom_individu <- parties[1]
+  genotypes_str <- parties[2]
+  
+  # Split individual genotypes
+  genotypes <- strsplit(genotypes_str, " ")[[1]]
+  genotypes <- genotypes[genotypes != ""]  # Remove the blank spaces
+  
+  # Correct each genotype
+  genotypes_corriges <- sapply(genotypes, function(gt) {
+    if(gt == "000000") {
+      return("0000")  # Missing data
+    } else if(nchar(gt) == 2) {
+      allele1 <- substr(gt, 1, 1)
+      allele2 <- substr(gt, 2, 2)
+      if(allele1 == "0") allele1 <- "01"
+      if(allele1 == "1") allele1 <- "02"
+      if(allele2 == "0") allele2 <- "01" 
+      if(allele2 == "1") allele2 <- "02"
+      
+      if(allele1 == "X") allele1 <- "01"
+      if(allele1 == "Y") allele1 <- "02"
+      if(allele2 == "X") allele2 <- "01" 
+      if(allele2 == "Y") allele2 <- "02"
+      return(paste0(allele1, allele2))
+    } else if(nchar(gt) == 4) {
+      return(gt)
+    }
+  })
+  
+  # Rebuild the line
+  nouvelle_ligne <- paste0(nom_individu, ", ", paste(genotypes_corriges, collapse = " "))
+  return(nouvelle_ligne)
+}
+
+```
+
+
+```{r}
+# Script pour corriger le format genepop
+snps_genepop <- list.files("Genepop_files/full_snps", full.names = TRUE)
+
+for (i in snps_genepop){
+  fichier_input <- i  
+  fichier_output <- paste0("Genepop_files/full_snps_corrected/",basename(i))
+
+  #Read all the lines
+  lignes <- readLines(fichier_input, warn = FALSE)
+  
+  pop_indices <- grep("^POP", lignes, ignore.case = TRUE)
+
+  #keep the header
+  header <- lignes[1:(pop_indices[1]-1)]
+  
+  # Line by line
+  lignes_corrigees <- character(length(lignes))
+
+  for(i in (pop_indices[1]):length(lignes)) {
+    ligne <- lignes[i]
+  
+    # If the line if for an individual, it contains a comma
+    if(grepl(",", ligne)) {
+    lignes_corrigees[i] <- corriger_genotypes(ligne) #APPLY the correction function
+    } else {
+    # 
+      lignes_corrigees[i] <- trimws(ligne) #If not an individual, do not modify the line
+    }
+  }
+
+  # Write the corrected file
+  writeLines(c(header,lignes_corrigees), fichier_output)
+
+  cat("Corrected and created file:", basename(fichier_output), "\n")
+  }
+
+```
+
+
+# Special case of Ursus arctos
+
+This dataset from Kopatz et al. 2024 was not available at the VCF format but directly as a genind file. 
+So, I skipped the filtering part on VCF and will check the missingness of data within the genind file. 
+
+The assignation of individuals to a population was checked and studied using the admixture coefficients of genetic clustering from the original study, combined with geographic data and information from a corresponding SSR dataset (Kopatz et al. 2021). The corresponding codes are not available here but can be shared on request. 
+
+```{r}
+raw_data <- read.csv("raw_data/format_other_vcf/Ursus_arctos_Genetic_data_SNPs_Kopatz_2024.csv", sep=";")
+info_pop <- read.csv("raw_data/format_other_vcf/Ursus_arctos_Ind_Pop_SNPs_bears_Kopatz_2024.csv", sep=",")
+
+raw_data <- info_pop %>% select(Ind,Population) %>% left_join(raw_data, by="Ind")
+table(raw_data$Population)
+
+#construction of adequate dataframe to transform it into a genind object
+allele1 <- as.matrix(raw_data[,seq(3,ncol(raw_data)-1,by=2)])
+allele2 <- as.matrix(raw_data[,seq(4,ncol(raw_data),by=2)])
+gt <- as.data.frame(matrix( paste( allele1, allele2, sep = "/"), ncol = (ncol(raw_data)-2)/2))
+colnames(gt)<-colnames(raw_data[,seq(3,ncol(raw_data)-1,by=2)])
+
+#Transform it into a genind object
+genind_data <- df2genind(gt, 
+                         pop = raw_data$Population, 
+                         ind.names = raw_data$Ind,
+                         ploidy = 2, 
+                         #ncode=3,
+                         NA.char = "0",
+                         sep="/"
+                         )
+
+```
+
+Check quality of data --> missing data and singletons
+
+```{r}
+# locus with missing data > 20%? --> Nope
+missing_per_locus <- colSums(is.na(tab(genind_data)))/82
+which(missing_per_locus > 0.20)
+
+# individuals with missing data > 20%? --> Nope
+missing_per_ind <- rowSums(is.na(tab(genind_data)))/93
+which(missing_per_ind > 0.20)
+
+```
+
+Almost no missing data!
+
+```{r}
+allele_tab <- tab(genind_data)
+allele_count <- colSums(allele_tab, na.rm = TRUE)
+which(allele_count <= 1)
+```
+
+No singletons, so all is good! We can use this dataset directly
+
+```{r}
+#rename it
+genind_name <-  "gen_Ursus_arctos_Kopatz_2024"
+assign(genind_name, genind_data)
+
+#Save the genind object
+save(list = genind_name,file=paste0("FINAL_datasets/snps_full/genind_with_pop_ass/",genind_name,".Rdata"))
+
+#genind by pop
+  genind_sep <- seppop(genind_data)
+  
+for (pop in names(genind_sep)){
+  genind_obj <- genind_sep[[pop]]
+  genind_name <- paste0("gen_Ursus_arctos_Kopatz_2024_",pop)
+  assign(genind_name, genind_obj)
+  save(list=genind_name,file=paste0("FINAL_datasets/snps_by_pop/genind/",genind_name,".Rdata"))
+  
+  rm(genind_obj)
+}
+```
+
+Look at the Fst by pop
+
+```{r}
+i="Ursus_arctos_Kopatz_2024"
+genl_file <- gi2gl(genind_data)
+  
+if (file.exists(paste0("raw_data/snps/R_objects/bootstrapped_fst_pop_",i,".Rdata"))){
+  load(paste0("raw_data/snps/R_objects/bootstrapped_fst_pop_",i,".Rdata"))
+}else{
+  #pairwise fst with p-values
+  geno_df <- snpR::import.snpR.data(genl_file)
+  geno_df <- snpR::calc_pairwise_fst(geno_df,facets="pop",boot=100)
+
+  bootstrapped_fst_pop <- get.snpR.stats(geno_df, "pop", stats ="fst")
+
+  #head(bootstrapped_fst_pop$fst.matrix$pop)
+  
+  #save this data
+  save(bootstrapped_fst_pop,file=paste0("raw_data/snps/R_objects/bootstrapped_fst_pop_",i,".Rdata"))
+
+}
+
+```
+
+```{r}
+#turn matrix p-values in a dataframe
+Pvalues <- as.data.frame(bootstrapped_fst_pop$fst.matrix$pop$p)
+rownames(Pvalues)<- Pvalues[[1]]
+Pvalues[[1]] <- NULL
+Pvalues <- t(Pvalues)
+Pvalues
+
+Pvalues.df <- reshape2::melt(Pvalues, varnames = c('Site1', 'Site2'), value.name="Pvalue", na.rm = TRUE)
+head(Pvalues.df)
+
+#turn matrix fst in a dataframe
+Fst <- as.data.frame(bootstrapped_fst_pop$fst.matrix$pop$fst)
+rownames(Fst)<- Fst[[1]]
+Fst[[1]] <- NULL
+Fst <- t(Fst)
+Fst
+
+Fst.df <- reshape2::melt(Fst, varnames = c('Site1', 'Site2'), value.name="Fst", na.rm = TRUE)
+head(Fst.df)
+
+#concat
+Fst.Pvalues.df <- left_join(Fst.df,Pvalues.df,by=c("Site1","Site2"))
+head(Fst.Pvalues.df)
+```
+
+```{r}
+# Extract middle Fst value for gradient argument
+mid = max(Fst.Pvalues.df$Fst) / 2
+
+# Plot heatmap
+g <- ggplot(data = Fst.Pvalues.df, aes(x = Site1, y = Site2, fill = Fst))+
+  geom_tile(colour = "black")+
+  geom_text(data = subset(Fst.Pvalues.df, Pvalue > 0.05), aes(label = round(Pvalue, 2)), color = "black", size = 3)+
+  scale_fill_gradient2(low = "#4B0055FF", mid = "#009796FF", high = "#FDE333FF")+
+  scale_x_discrete(expand = c(0,0), )+
+  scale_y_discrete(expand = c(0,0), position = "right")+
+  theme(axis.text = element_text(colour = "black", size = 8, angle=45, vjust=1, hjust=1),
+        axis.title = element_blank(),
+        panel.grid = element_blank(),
+        panel.background = element_blank(),
+        legend.position = "right",
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 10)
+        )+
+  ggtitle(bquote(
+    atop(.(i), 
+    atop("Pairwise Fst",italic("Numbers correspond to p-values for Fst not significantly different from 0")))
+    ))
+print(g)
+ggsave(g,file=paste0("raw_data/snps/Population_assignation/Matrix_pairwise_Fst_",i,".pdf"))
+```

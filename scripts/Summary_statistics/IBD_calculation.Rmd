@@ -1,0 +1,806 @@
+---
+title: "Calcul of IBD in legacy datasets"
+author: "MGH"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+      position: left
+    toc_depth: 4
+    number_sections: true
+    df_print: paged
+---
+
+# Set-up
+
+
+```{r}
+rm(list=ls(all=TRUE))
+#!!!!! Change directory according your own directory !!!!!
+setwd("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Geographic_sampling")
+```
+
+```{r, message=FALSE, warning=FALSE}
+library(sf)
+library(ggplot2)
+library(ggpmisc)
+library(tidyr)
+library(tibble)
+library(dplyr)
+library(purrr)
+library(units)
+library("measurements")
+library(geodist)
+```
+
+
+# Pairwise distance between populations
+
+So here, I calculate the distance in km between pairs of populations. Everything is saved into a list with an element corresponding to a dataset (the pairwise Fst are also stored into a list, that's why!)
+
+## Calculate the distances for datasets with GPS coordinates
+
+### microsat datasets
+
+```{r}
+microsat_dist <- list.files("data_checked_ok/microsat/", full.names = TRUE)
+```
+
+```{r}
+microsat_Dist_values_by_dataset <- list()
+
+for (i in microsat_dist){
+  #load coordinates of populations
+  dataset <- read.csv(i,sep=";")
+  dataset <- dataset %>% column_to_rownames("Pop") %>% as.matrix()
+  
+  #calculate the distance
+  mat_dist <- geodist(dataset, measure = "geodesic") #measure in meter
+  mat_dist <- mat_dist / 1000 #convert in km
+  rownames(mat_dist) <- rownames(dataset)
+  colnames(mat_dist) <- rownames(dataset)
+  mat_dist
+  
+  #save that in a list
+  name_dataset <- tools::file_path_sans_ext(basename(i))
+  microsat_Dist_values_by_dataset[[name_dataset]] <- mat_dist
+}
+
+
+```
+
+### SNPs datasets
+
+```{r}
+snps_dist <- list.files("data_checked_ok/snps/", full.names = TRUE)
+```
+
+
+```{r}
+snps_Dist_values_by_dataset <- list()
+
+for (i in snps_dist){
+  #load coordinates of populations
+  dataset <- read.csv(i,sep=";")
+  dataset <- dataset %>% column_to_rownames("Pop_final") %>% as.matrix()
+  
+  #calculate the distance
+  mat_dist <- geodist(dataset, measure = "geodesic") #measure in meter
+  mat_dist <- mat_dist / 1000 #convert in km
+  rownames(mat_dist) <- rownames(dataset)
+  colnames(mat_dist) <- rownames(dataset)
+  mat_dist
+  
+  #save that in a list
+  name_dataset <- tools::file_path_sans_ext(basename(i))
+  snps_Dist_values_by_dataset[[name_dataset]] <- mat_dist
+}
+
+
+```
+
+## Add the distance matrix calculated by hand with ImageJ
+
+```{r}
+hand_calc_dist_mat <- list.files("data_checked_ok/dist_mat_hand_calc_with_ImageJ/", full.names = TRUE)
+hand_calc_dist_mat
+
+microsat_hand_calc_dist_mat <- c("data_checked_ok/dist_mat_hand_calc_with_ImageJ/Canis_lupus_Silva_2018_K11.txt","data_checked_ok/dist_mat_hand_calc_with_ImageJ/Canis_lupus_Szewczyk_2019.txt", "data_checked_ok/dist_mat_hand_calc_with_ImageJ/Cypripedium_calceolus_Gargiulo_2023.txt", "data_checked_ok/dist_mat_hand_calc_with_ImageJ/Mya_arenaria_DeNoia_2020.txt","data_checked_ok/dist_mat_hand_calc_with_ImageJ/Passer_domesticus_Baalsrud_2013_pop_1994.txt", "data_checked_ok/dist_mat_hand_calc_with_ImageJ/Passer_domesticus_Baalsrud_2013_pop_2000.txt", "data_checked_ok/dist_mat_hand_calc_with_ImageJ/Passer_domesticus_Baalsrud_2013_pop_2006.txt", "data_checked_ok/dist_mat_hand_calc_with_ImageJ/Rana_arvalis_Cox_2024.txt")
+
+snps_hand_calc_dist_mat <- c("data_checked_ok/dist_mat_hand_calc_with_ImageJ/Cypripedium_calceolus_Gargiulo_2023.txt", "data_checked_ok/dist_mat_hand_calc_with_ImageJ/Passer_domesticus_Hagen_2020.txt","data_checked_ok/dist_mat_hand_calc_with_ImageJ/Sardina_pilchardus_Antoniou_2023.txt", "data_checked_ok/dist_mat_hand_calc_with_ImageJ/Symphonia_globulifera_Schmitt2021_Gargiulo2024.txt")
+```
+
+
+```{r}
+for (i in microsat_hand_calc_dist_mat){
+  mat <- as.matrix(read.table(i, header = TRUE, row.names = 1, sep = "\t", na.strings = ""))
+  mat[upper.tri(mat)] <- t(mat)[upper.tri(mat)]
+  
+  #save that in a list
+  name_dataset <- tools::file_path_sans_ext(basename(i))
+  microsat_Dist_values_by_dataset[[name_dataset]] <- mat
+  
+  #check
+  #print(name_dataset)
+  #print(mat)
+}
+
+```
+
+Let's add this in the SNPs list
+
+```{r}
+for (i in snps_hand_calc_dist_mat){
+  mat <- as.matrix(read.table(i, header = TRUE, row.names = 1, sep = "\t", na.strings = ""))
+  mat[upper.tri(mat)] <- t(mat)[upper.tri(mat)]
+  
+  #save that in a list
+  name_dataset <- tools::file_path_sans_ext(basename(i))
+  snps_Dist_values_by_dataset[[name_dataset]] <- mat
+  
+  #check
+  #print(name_dataset)
+  #print(mat)
+}
+
+```
+
+## Check our final distance matrixes
+
+```{r}
+names(microsat_Dist_values_by_dataset)
+
+
+names(snps_Dist_values_by_dataset)
+```
+
+
+
+and save these 2 lists
+
+```{r}
+save(microsat_Dist_values_by_dataset, file="microsat_Dist_values_by_dataset.Rdata")
+save(snps_Dist_values_by_dataset, file="snps_Dist_values_by_dataset.Rdata")
+```
+
+
+# IBD
+
+## Load the Fst pairwise
+Load the pairwise matrices (already obtained from the Summary_statistics files)
+
+```{r}
+#SNPs
+load("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v4/Summary_statistics/snps_Pairwise_values_by_dataset.Rdata")
+names(snps_Pairwise_values_by_dataset)
+
+#Microsat
+load("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v2/FINAL_datasets/microsat_Pairwise_values_by_dataset.Rdata")
+names(Pairwise_values_by_dataset_microsat)
+```
+
+Some adjustments --> improve the name of datasets
+
+```{r}
+#SNPs
+names(snps_Pairwise_values_by_dataset) <- sub("^gen_", "", names(snps_Pairwise_values_by_dataset))
+names(snps_Pairwise_values_by_dataset)
+
+#microsat
+names(Pairwise_values_by_dataset_microsat) <- sub("^genind_", "", names(Pairwise_values_by_dataset_microsat))
+names(Pairwise_values_by_dataset_microsat)
+```
+
+
+## Table pairwise Fst/dist 
+
+### Microsat
+
+```{r}
+microsat_datasets <- names(Pairwise_values_by_dataset_microsat)
+```
+
+
+```{r}
+microsat_df_pop_2by2_Fst_dist <- list()
+
+for (i in microsat_datasets){
+  #turn matrix fst in a dataframe
+  pairwise_fst <- as.matrix(Pairwise_values_by_dataset_microsat[[i]]$fst)
+  mat_low <- lower.tri(pairwise_fst, diag = FALSE)
+  pairwise_fst_df <- data.frame(pop1  = rownames(pairwise_fst)[row(pairwise_fst)[mat_low]],
+                          pop2  = colnames(pairwise_fst)[col(pairwise_fst)[mat_low]],
+                          Fst = as.numeric(pairwise_fst[mat_low]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+
+  #turn matrix dist in a dataframe
+  pairwise_dist <- as.matrix(microsat_Dist_values_by_dataset[[i]])
+  mat_low2 <- lower.tri(pairwise_dist, diag = FALSE)
+  pairwise_dist_df <- data.frame(pop1  = rownames(pairwise_dist)[row(pairwise_dist)[mat_low2]],
+                          pop2  = colnames(pairwise_dist)[col(pairwise_dist)[mat_low2]],
+                          Dist_km = as.numeric(pairwise_dist[mat_low2]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+
+  #concat
+  pairwise_fst_df  <- pairwise_fst_df %>%
+  mutate(popA  = pmin(pop1, pop2), #this is to make sure that we have the 2 columns organized the same way as pop1-pop2 and not pop2-pop1
+         popB = pmax(pop1, pop2))%>%             
+  select(-pop1, -pop2)  
+pairwise_dist_df <- pairwise_dist_df  %>%
+  mutate(popA  = pmin(pop1, pop2),  
+         popB = pmax(pop1, pop2))%>%             
+  select(-pop1, -pop2)  
+  Fst_dist_df <- left_join(pairwise_dist_df,pairwise_fst_df,by=c("popA", "popB"))
+  
+  #store this dataframe in a list
+  microsat_df_pop_2by2_Fst_dist[[i]] <- Fst_dist_df
+}
+
+
+```
+
+Checking if there are some problem
+```{r}
+has_NA <- sapply(microsat_df_pop_2by2_Fst_dist, anyNA)
+names(microsat_df_pop_2by2_Fst_dist)[has_NA]
+```
+
+Cases with problems:
+
+```{r}
+i="Canis_lupus_Silva_2018_K11"
+
+#turn matrix fst in a dataframe
+  pairwise_fst <- as.matrix(Pairwise_values_by_dataset_microsat[[i]]$fst)
+  mat_low <- lower.tri(pairwise_fst, diag = FALSE)
+  pairwise_fst_df <- data.frame(pop1  = rownames(pairwise_fst)[row(pairwise_fst)[mat_low]],
+                          pop2  = colnames(pairwise_fst)[col(pairwise_fst)[mat_low]],
+                          Fst = as.numeric(pairwise_fst[mat_low]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+pairwise_fst_df
+
+  #turn matrix dist in a dataframe
+  pairwise_dist <- as.matrix(microsat_Dist_values_by_dataset[[i]])
+  mat_low2 <- lower.tri(pairwise_dist, diag = FALSE)
+  pairwise_dist_df <- data.frame(pop1  = rownames(pairwise_dist)[row(pairwise_dist)[mat_low2]],
+                          pop2  = colnames(pairwise_dist)[col(pairwise_dist)[mat_low2]],
+                          Dist_km = as.numeric(pairwise_dist[mat_low2]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+pairwise_dist_df
+pairwise_dist_df$pop2 <- gsub("\\.", " ", pairwise_dist_df$pop2)
+pairwise_dist_df
+
+  #concat
+pairwise_fst_df  <- pairwise_fst_df %>%
+  mutate(popA  = pmin(pop1, pop2),
+         popB = pmax(pop1, pop2))%>%             
+  select(-pop1, -pop2)  
+pairwise_dist_df <- pairwise_dist_df  %>%
+  mutate(popA  = pmin(pop1, pop2),  
+         popB = pmax(pop1, pop2))%>%             
+  select(-pop1, -pop2)  
+  Fst_dist_df <- left_join(pairwise_dist_df,pairwise_fst_df,by=c("popA", "popB"))
+  
+  #store this dataframe in a list
+  microsat_df_pop_2by2_Fst_dist[[i]] <- Fst_dist_df
+  microsat_df_pop_2by2_Fst_dist[[i]]
+```
+
+```{r}
+i="Canis_lupus_Szewczyk_2019"
+
+#turn matrix fst in a dataframe
+  pairwise_fst <- as.matrix(Pairwise_values_by_dataset_microsat[[i]]$fst)
+  mat_low <- lower.tri(pairwise_fst, diag = FALSE)
+  pairwise_fst_df <- data.frame(pop1  = rownames(pairwise_fst)[row(pairwise_fst)[mat_low]],
+                          pop2  = colnames(pairwise_fst)[col(pairwise_fst)[mat_low]],
+                          Fst = as.numeric(pairwise_fst[mat_low]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+pairwise_fst_df
+
+  #turn matrix dist in a dataframe
+  pairwise_dist <- as.matrix(microsat_Dist_values_by_dataset[[i]])
+  mat_low2 <- lower.tri(pairwise_dist, diag = FALSE)
+  pairwise_dist_df <- data.frame(pop1  = rownames(pairwise_dist)[row(pairwise_dist)[mat_low2]],
+                          pop2  = colnames(pairwise_dist)[col(pairwise_dist)[mat_low2]],
+                          Dist_km = as.numeric(pairwise_dist[mat_low2]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+pairwise_dist_df
+pairwise_dist_df$pop2 <- gsub("\\.", " ", pairwise_dist_df$pop2)
+pairwise_dist_df
+
+  #concat
+pairwise_fst_df  <- pairwise_fst_df %>%
+  mutate(popA  = pmin(pop1, pop2),
+         popB = pmax(pop1, pop2))%>%             
+  select(-pop1, -pop2)  
+pairwise_dist_df <- pairwise_dist_df  %>%
+  mutate(popA  = pmin(pop1, pop2),  
+         popB = pmax(pop1, pop2))%>%             
+  select(-pop1, -pop2)  
+  Fst_dist_df <- left_join(pairwise_dist_df,pairwise_fst_df,by=c("popA", "popB"))
+  
+  #store this dataframe in a list
+  microsat_df_pop_2by2_Fst_dist[[i]] <- Fst_dist_df
+  microsat_df_pop_2by2_Fst_dist[[i]]
+```
+
+```{r}
+i="Mya_arenaria_DeNoia_2020"
+
+#turn matrix fst in a dataframe
+  pairwise_fst <- as.matrix(Pairwise_values_by_dataset_microsat[[i]]$fst)
+  mat_low <- lower.tri(pairwise_fst, diag = FALSE)
+  pairwise_fst_df <- data.frame(pop1  = rownames(pairwise_fst)[row(pairwise_fst)[mat_low]],
+                          pop2  = colnames(pairwise_fst)[col(pairwise_fst)[mat_low]],
+                          Fst = as.numeric(pairwise_fst[mat_low]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+  #pb comes because pb with pop name that was updated since
+  new_pop_name <- c("K" = "ITA",
+                    "Com_It" = "PLY",
+                    "E"="TEX",
+                    "Kiel_Germ"="KIE",
+                    "SanAndr_UK"="SAN",
+                    "H"="LIS",
+                    "Bre_Fr"="BRE",
+                    "LCt_Fr"="LCT")
+  pairwise_fst_df <- pairwise_fst_df %>% 
+  mutate(pop1 = recode(pop1, !!!new_pop_name, .default = pop1),
+          pop2 = recode(pop2, !!!new_pop_name, .default = pop2))
+
+  #turn matrix dist in a dataframe
+  pairwise_dist <- as.matrix(microsat_Dist_values_by_dataset[[i]])
+  mat_low2 <- lower.tri(pairwise_dist, diag = FALSE)
+  pairwise_dist_df <- data.frame(pop1  = rownames(pairwise_dist)[row(pairwise_dist)[mat_low2]],
+                          pop2  = colnames(pairwise_dist)[col(pairwise_dist)[mat_low2]],
+                          Dist_km = as.numeric(pairwise_dist[mat_low2]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+  pairwise_dist_df
+
+  #concat
+pairwise_fst_df  <- pairwise_fst_df %>%
+  mutate(popA  = pmin(pop1, pop2),
+         popB = pmax(pop1, pop2))%>%             
+  select(-pop1, -pop2)  
+pairwise_dist_df <- pairwise_dist_df  %>%
+  mutate(popA  = pmin(pop1, pop2),  
+         popB = pmax(pop1, pop2))%>%             
+  select(-pop1, -pop2)  
+  Fst_dist_df <- left_join(pairwise_dist_df,pairwise_fst_df,by=c("popA", "popB"))
+  
+  #store this dataframe in a list
+  microsat_df_pop_2by2_Fst_dist[[i]] <- Fst_dist_df
+  microsat_df_pop_2by2_Fst_dist[[i]]
+```
+
+```{r}
+passer_datasets <- c("Passer_domesticus_Baalsrud_2013_pop_1994","Passer_domesticus_Baalsrud_2013_pop_2000","Passer_domesticus_Baalsrud_2013_pop_2006")
+
+for (i in passer_datasets){
+  #turn matrix fst in a dataframe
+  pairwise_fst <- as.matrix(Pairwise_values_by_dataset_microsat[[i]]$fst)
+  mat_low <- lower.tri(pairwise_fst, diag = FALSE)
+  pairwise_fst_df <- data.frame(pop1  = rownames(pairwise_fst)[row(pairwise_fst)[mat_low]],
+                          pop2  = colnames(pairwise_fst)[col(pairwise_fst)[mat_low]],
+                          Fst = as.numeric(pairwise_fst[mat_low]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+
+  #turn matrix dist in a dataframe
+  pairwise_dist <- as.matrix(microsat_Dist_values_by_dataset[[i]])
+  mat_low2 <- lower.tri(pairwise_dist, diag = FALSE)
+  pairwise_dist_df <- data.frame(pop1  = rownames(pairwise_dist)[row(pairwise_dist)[mat_low2]],
+                          pop2  = colnames(pairwise_dist)[col(pairwise_dist)[mat_low2]],
+                          Dist_km = as.numeric(pairwise_dist[mat_low2]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+  pairwise_dist_df$pop2 <- gsub("\\.", "-", pairwise_dist_df$pop2)
+  pairwise_dist_df
+  
+  #concat
+  pairwise_fst_df  <- pairwise_fst_df %>% mutate(popA  = pmin(pop1, pop2),
+                                                  popB = pmax(pop1, pop2)) %>% select(-pop1, -pop2)  
+  pairwise_dist_df <- pairwise_dist_df  %>% mutate(popA  = pmin(pop1, pop2),  
+                                                    popB = pmax(pop1, pop2))%>% select(-pop1, -pop2)  
+  Fst_dist_df <- left_join(pairwise_fst_df,pairwise_dist_df,by=c("popA", "popB")) #careful, order exchanged!!! because distance matrixes contains all the island while according the year, not exactly the same
+  
+  #store this dataframe in a list
+  microsat_df_pop_2by2_Fst_dist[[i]] <- Fst_dist_df
+  microsat_df_pop_2by2_Fst_dist[[i]]
+}
+
+```
+
+Now, look again at the problems:
+```{r}
+has_NA <- sapply(microsat_df_pop_2by2_Fst_dist, anyNA)
+names(microsat_df_pop_2by2_Fst_dist)[has_NA]
+```
+
+If null --> then it's all good :)
+
+### SNPs
+
+```{r}
+load("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v3/Geographic_measures/snps_Dist_values_by_dataset.Rdata")
+names(snps_Dist_values_by_dataset) <- c("Barbastella_barbastellus_Razgour_2024",
+                                        "Coenagrion_mercuriale_Leveque_2024",
+                                        "Fagus_sylvatica_Milesi_2024",
+                                        "Pinus_pinaster_Milesi_2024",
+                                        "Pinus_sylvestris_Milesi_2024",
+                                        "Raja_clavata_Marandel_2020",
+                                        "Sardina_pilchardus_Antoniou_2023",
+                                        "Passer_domesticus_Hagen_2020", 
+                                        "Cypripedium_calceolus_Gargiulo_2023")
+names(snps_Dist_values_by_dataset)
+```
+
+```{r}
+snps_datasets <- names(snps_Pairwise_values_by_dataset)
+snps_datasets
+
+snps_datasets <- snps_datasets[snps_datasets != ("Symphonia_globulifera_Schmitt2021_Gargiulo2024")]
+```
+
+
+```{r}
+snps_df_pop_2by2_Fst_dist <- list()
+
+for (i in snps_datasets){
+  #turn matrix fst in a dataframe
+  pairwise_fst <- as.matrix(snps_Pairwise_values_by_dataset[[i]]$fst)
+  mat_low <- lower.tri(pairwise_fst, diag = FALSE)
+  pairwise_fst_df <- data.frame(pop1  = rownames(pairwise_fst)[row(pairwise_fst)[mat_low]],
+                          pop2  = colnames(pairwise_fst)[col(pairwise_fst)[mat_low]],
+                          Fst = as.numeric(pairwise_fst[mat_low]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+
+  #turn matrix dist in a dataframe
+  pairwise_dist <- as.matrix(snps_Dist_values_by_dataset[[i]])
+  mat_low2 <- lower.tri(pairwise_dist, diag = FALSE)
+  pairwise_dist_df <- data.frame(pop1  = rownames(pairwise_dist)[row(pairwise_dist)[mat_low2]],
+                          pop2  = colnames(pairwise_dist)[col(pairwise_dist)[mat_low2]],
+                          Dist_km = as.numeric(pairwise_dist[mat_low2]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+
+  #concat
+    pairwise_fst_df  <- pairwise_fst_df %>%
+  mutate(popA  = pmin(pop1, pop2), #this is to make sure that we have the 2 columns organized the same way as pop1-pop2 and not pop2-pop1
+         popB = pmax(pop1, pop2))%>%             
+  select(-pop1, -pop2)  
+pairwise_dist_df <- pairwise_dist_df  %>%
+  mutate(popA  = pmin(pop1, pop2),  
+         popB = pmax(pop1, pop2))%>%             
+  select(-pop1, -pop2)  
+  Fst_dist_df <- left_join(pairwise_dist_df,pairwise_fst_df,by=c("popA", "popB"))
+
+  #store this dataframe in a list
+  snps_df_pop_2by2_Fst_dist[[i]] <- Fst_dist_df
+}
+
+
+```
+
+```{r}
+has_NA <- sapply(snps_df_pop_2by2_Fst_dist, anyNA)
+names(snps_df_pop_2by2_Fst_dist)[has_NA]
+```
+
+
+```{r}
+i="Cypripedium_calceolus_Gargiulo_2023"
+
+  #turn matrix fst in a dataframe
+  pairwise_fst <- as.matrix(snps_Pairwise_values_by_dataset[[i]]$fst)
+  mat_low <- lower.tri(pairwise_fst, diag = FALSE)
+  pairwise_fst_df <- data.frame(pop1  = rownames(pairwise_fst)[row(pairwise_fst)[mat_low]],
+                          pop2  = colnames(pairwise_fst)[col(pairwise_fst)[mat_low]],
+                          Fst = as.numeric(pairwise_fst[mat_low]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+  new_pop_name <- c("EK"="Korgessaare",
+                    "EU"="Ussisoo")
+  pairwise_fst_df <- pairwise_fst_df %>% 
+  mutate(pop1 = recode(pop1, !!!new_pop_name, .default = pop1),
+          pop2 = recode(pop2, !!!new_pop_name, .default = pop2))
+  #turn matrix dist in a dataframe
+  pairwise_dist <- as.matrix(snps_Dist_values_by_dataset[[i]])
+  mat_low2 <- lower.tri(pairwise_dist, diag = FALSE)
+  pairwise_dist_df <- data.frame(pop1  = rownames(pairwise_dist)[row(pairwise_dist)[mat_low2]],
+                          pop2  = colnames(pairwise_dist)[col(pairwise_dist)[mat_low2]],
+                          Dist_km = as.numeric(pairwise_dist[mat_low2]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+
+  #concat
+    pairwise_fst_df  <- pairwise_fst_df %>%
+  mutate(popA  = pmin(pop1, pop2), #this is to make sure that we have the 2 columns organized the same way as pop1-pop2 and not pop2-pop1
+         popB = pmax(pop1, pop2))%>%             
+  select(-pop1, -pop2)  
+pairwise_dist_df <- pairwise_dist_df  %>%
+  mutate(popA  = pmin(pop1, pop2),  
+         popB = pmax(pop1, pop2))%>%             
+  select(-pop1, -pop2)  
+  Fst_dist_df <- left_join(pairwise_dist_df,pairwise_fst_df,by=c("popA", "popB"))
+
+  #store this dataframe in a list
+  snps_df_pop_2by2_Fst_dist[[i]] <- Fst_dist_df
+```
+
+
+```{r}
+i="Passer_domesticus_Hagen_2020"
+
+  #turn matrix fst in a dataframe
+  pairwise_fst <- as.matrix(snps_Pairwise_values_by_dataset[[i]]$fst)
+  mat_low <- lower.tri(pairwise_fst, diag = FALSE)
+  pairwise_fst_df <- data.frame(pop1  = rownames(pairwise_fst)[row(pairwise_fst)[mat_low]],
+                          pop2  = colnames(pairwise_fst)[col(pairwise_fst)[mat_low]],
+                          Fst = as.numeric(pairwise_fst[mat_low]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+
+  #turn matrix dist in a dataframe
+  pairwise_dist <- as.matrix(snps_Dist_values_by_dataset[[i]])
+  mat_low2 <- lower.tri(pairwise_dist, diag = FALSE)
+  pairwise_dist_df <- data.frame(pop1  = rownames(pairwise_dist)[row(pairwise_dist)[mat_low2]],
+                          pop2  = colnames(pairwise_dist)[col(pairwise_dist)[mat_low2]],
+                          Dist_km = as.numeric(pairwise_dist[mat_low2]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+  pairwise_dist_df
+  
+  #concat
+  pairwise_fst_df  <- pairwise_fst_df %>% mutate(popA  = pmin(pop1, pop2),
+                                                  popB = pmax(pop1, pop2)) %>% select(-pop1, -pop2)  
+  pairwise_dist_df <- pairwise_dist_df  %>% mutate(popA  = pmin(pop1, pop2),  
+                                                    popB = pmax(pop1, pop2))%>% select(-pop1, -pop2)  
+  Fst_dist_df <- left_join(pairwise_fst_df,pairwise_dist_df,by=c("popA", "popB")) #careful, order exchanged!!! because distance matrixes contains all the island while according the year, not exactly the same
+  
+  #store this dataframe in a list
+  snps_df_pop_2by2_Fst_dist[[i]] <- Fst_dist_df
+  snps_df_pop_2by2_Fst_dist[[i]]
+  
+# 2 pop are missing from the mapping Leka and Vega so for now, let's look at the results without them
+```
+
+
+```{r}
+i="Sardina_pilchardus_Antoniou_2023"
+
+  #turn matrix fst in a dataframe
+  pairwise_fst <- as.matrix(snps_Pairwise_values_by_dataset[[i]]$fst)
+  mat_low <- lower.tri(pairwise_fst, diag = FALSE)
+  pairwise_fst_df <- data.frame(pop1  = rownames(pairwise_fst)[row(pairwise_fst)[mat_low]],
+                          pop2  = colnames(pairwise_fst)[col(pairwise_fst)[mat_low]],
+                          Fst = as.numeric(pairwise_fst[mat_low]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+  #pb comes because pb with pop name that was updated since
+  new_pop_name <- c("1"="GSA1",
+                    "10"="GSA10",
+                    "11"="GSA11",
+                    "19"="GSA19",
+                    "5"="GSA5",
+                    "6a"="GSA6a",
+                    "6b"="GSA6b",
+                    "6c"="GSA6c",
+                    "9"="GSA9",
+                    "GoL_1A"="GSA7a",
+                    "GoL_2A"="GSA7b",
+                    "Ob"="GoC")
+  pairwise_fst_df <- pairwise_fst_df %>% 
+  mutate(pop1 = recode(pop1, !!!new_pop_name, .default = pop1),
+          pop2 = recode(pop2, !!!new_pop_name, .default = pop2))
+  
+  #turn matrix dist in a dataframe
+  pairwise_dist <- as.matrix(snps_Dist_values_by_dataset[[i]])
+  mat_low2 <- lower.tri(pairwise_dist, diag = FALSE)
+  pairwise_dist_df <- data.frame(pop1  = rownames(pairwise_dist)[row(pairwise_dist)[mat_low2]],
+                          pop2  = colnames(pairwise_dist)[col(pairwise_dist)[mat_low2]],
+                          Dist_km = as.numeric(pairwise_dist[mat_low2]),
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+
+  #concat
+    pairwise_fst_df  <- pairwise_fst_df %>%
+  mutate(popA  = pmin(pop1, pop2), #this is to make sure that we have the 2 columns organized the same way as pop1-pop2 and not pop2-pop1
+         popB = pmax(pop1, pop2))%>%             
+  select(-pop1, -pop2)  
+pairwise_dist_df <- pairwise_dist_df  %>%
+  mutate(popA  = pmin(pop1, pop2),  
+         popB = pmax(pop1, pop2))%>%             
+  select(-pop1, -pop2)  
+  Fst_dist_df <- left_join(pairwise_dist_df,pairwise_fst_df,by=c("popA", "popB"))
+
+  #store this dataframe in a list
+  snps_df_pop_2by2_Fst_dist[[i]] <- Fst_dist_df
+```
+
+Let's check again if it's okay (only Passer domesticus Hagen should be here)
+```{r}
+has_NA <- sapply(snps_df_pop_2by2_Fst_dist, anyNA)
+names(snps_df_pop_2by2_Fst_dist)[has_NA]
+```
+
+## Plot the IBD: Rousset stepping-stone model
+
+As in Milesi et al. 2024 --> following the Rousset approach for a two-dimensional stepping-stone model: 
+Fst/(1-Fst)=b*log(dist)+a+er
+
+```{r}
+for (i in names(microsat_df_pop_2by2_Fst_dist)){
+  df <- microsat_df_pop_2by2_Fst_dist[[i]]
+  g <- ggplot(df,aes(x=log(Dist_km),y=(Fst/(1-Fst))))+geom_point()+ 
+    geom_smooth(method = "lm", color = "blue") +
+    stat_poly_eq(
+    formula = y ~ x,
+    aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~~~")),
+    colour = "blue") +
+  ggtitle(i)+
+    ylim(0,0.8)+
+  theme_minimal()
+  print(g)
+}
+
+
+```
+
+
+```{r}
+for (i in names(snps_df_pop_2by2_Fst_dist)){
+  df <- snps_df_pop_2by2_Fst_dist[[i]]
+  g <- ggplot(df,aes(x=log(Dist_km),y=(Fst/(1-Fst))))+geom_point()+ 
+    geom_smooth(method = "lm", color = "blue") +
+    stat_poly_eq(
+    formula = y ~ x,
+    aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~~~")),
+    colour = "blue") +
+  ggtitle(i)+
+    ylim(0,0.8)+
+  theme_minimal()
+  print(g)
+}
+
+
+```
+
+
+## Gather the regression coeff of IBD in a tab
+
+As in Milesi et al. 2024 --> following the Rousset approach for a two-dimensional stepping-stone model: 
+Fst/(1-Fst)=b*log(dist)+a+er
+
+```{r}
+#replace negative Fst by 0
+microsat_df_pop_2by2_Fst_dist_2 <- map(microsat_df_pop_2by2_Fst_dist, ~ .x %>% mutate(Fst = pmax(Fst, 0)))
+snps_df_pop_2by2_Fst_dist_2 <- map(snps_df_pop_2by2_Fst_dist, ~ .x %>% mutate(Fst = pmax(Fst, 0)))
+
+  
+IBD_coeff_Rousset <- matrix(ncol=8,nrow=0)
+colnames(IBD_coeff_Rousset) <- c("Dataset","Marker_type","a_intercept","pval_a_intercept","b_slope","pval_b_slope","R2","R2_adjusted")
+
+## Microsat
+Marker_type="microsat"
+for (i in 1:length(microsat_df_pop_2by2_Fst_dist_2)){
+  
+  dat=microsat_df_pop_2by2_Fst_dist_2[[i]]
+  #sometimes, distance are very small and interpreted as zero
+  dat <- dat %>% mutate(Dist_km=case_when(Dist_km == 0 ~ 0.00000001,
+                                          TRUE ~ Dist_km))
+  
+  
+  #Linear model: Fst/(1-Fst)=b*log(dist)+a+er
+  mod <- lm((Fst/(1 - Fst)) ~ log(Dist_km), data = dat)
+  
+  IBD_coeff_Rousset <- rbind(IBD_coeff_Rousset, 
+                             c(names(microsat_df_pop_2by2_Fst_dist_2)[[i]],#name of the dataset
+                               Marker_type,
+                               summary(mod)$coefficients[1,1],#intercept coeff
+                               summary(mod)$coefficients[1,4],#intercept p-value
+                               ifelse(nrow(summary(mod)$coefficients) >= 2,summary(mod)$coefficients[2, 1],"NA"),#slope coeff
+                               ifelse(nrow(summary(mod)$coefficients) >= 2,summary(mod)$coefficients[2, 4],"NA"),#slope p-value
+                               summary(mod)$r.squared,#R2
+                               summary(mod)$adj.r.squared #R2-adjusted
+                               ))
+
+}
+
+
+## SNPs
+Marker_type="snps"
+for (i in 1:length(snps_df_pop_2by2_Fst_dist)){
+  
+  dat=snps_df_pop_2by2_Fst_dist[[i]]
+  #sometimes, distance are very small and interpreted as zero
+  dat <- dat %>% mutate(Dist_km=case_when(Dist_km == 0 ~ 0.00000001,
+                                          TRUE ~ Dist_km))
+  
+  
+  #Linear model: Fst/(1-Fst)=b*log(dist)+a+er
+  mod <- lm((Fst/(1 - Fst)) ~ log(Dist_km), data = dat)
+  
+  IBD_coeff_Rousset <- rbind(IBD_coeff_Rousset, 
+                             c(names(snps_df_pop_2by2_Fst_dist)[[i]],#name of the dataset
+                               Marker_type,
+                               summary(mod)$coefficients[1,1],#intercept coeff
+                               summary(mod)$coefficients[1,4],#intercept p-value
+                               ifelse(nrow(summary(mod)$coefficients) >= 2,summary(mod)$coefficients[2, 1],"NA"),#slope coeff
+                               ifelse(nrow(summary(mod)$coefficients) >= 2,summary(mod)$coefficients[2, 4],"NA"),#slope p-value
+                               summary(mod)$r.squared,#R2
+                               summary(mod)$adj.r.squared #R2-adjusted
+                               ))
+
+  }
+```
+
+Save this table
+```{r}
+# add a column with IBD_slope x 10^(-3)
+IBD_coeff_Rousset <- as.data.frame(IBD_coeff_Rousset)
+IBD_coeff_Rousset <- IBD_coeff_Rousset %>% mutate(IBD_slope_10_3=as.numeric(b_slope)*(10^(3)))
+
+#save
+write.csv(IBD_coeff_Rousset, file="IBD_snps_microsat_Rousset_reg.csv")
+```
+
+
+## Graphical summary
+
+Look at the values
+```{r}
+IBD_coeff_Rousset$Dataset_Marker_type <- paste0(IBD_coeff_Rousset$Dataset,"-",IBD_coeff_Rousset$Marker_type)
+IBD_coeff_Rousset$R2_adjusted <- as.numeric(IBD_coeff_Rousset$R2_adjusted)
+IBD_coeff_Rousset$R2 <- as.numeric(IBD_coeff_Rousset$R2)
+
+IBD_coeff_Rousset %>% 
+  arrange(Dataset_Marker_type) %>%
+  select(Dataset_Marker_type, IBD_slope_10_3, R2) %>%
+  mutate(IBD_slope_10_3 = round(IBD_slope_10_3, 2),
+         R2 = round(R2, 3)) %>%
+  print()
+```
+
+```{r}
+
+IBD_coeff_Rousset %>% ggplot(aes(x=reorder(Dataset_Marker_type, IBD_slope_10_3),y=IBD_slope_10_3))+
+                            geom_point()+
+                            theme(axis.text.x = element_text(angle=90, hjust=1))+
+                            xlab("Dataset")+ylab("Slope x 10^(-3)")+
+                            ggtitle("Slope of regression for Fst/(1-Fst)=log(Dist)")
+
+IBD_coeff_Rousset %>% ggplot(aes(x=R2,y=IBD_slope_10_3,fill=Dataset_Marker_type, color=Dataset_Marker_type))+
+                            geom_point()+
+                            theme(axis.text.x = element_text(angle=90, hjust=1))+
+                            xlab("Quality of regression (R²)")+ylab("Slope x 10^(-3)")+
+                            ggtitle("Regression of Fst/(1-Fst)=log(Dist)")
+
+IBD_coeff_Rousset %>% ggplot(aes(x=R2,y=IBD_slope_10_3,fill=Dataset_Marker_type, color=Dataset_Marker_type))+
+                            geom_point()+
+                            theme(axis.text.x = element_text(angle=90, hjust=1))+
+                            theme(legend.position="none")+
+                            xlab("Quality of regression (R²)")+ylab("Slope x 10^(-3)")+
+                            ggtitle("Regression for Fst/(1-Fst)=log(Dist)")
+
+
+```
+
+Most of the regression do not really have a good quality as shown with low values of R². 
+Only 5 datasets with R² above 0.5.
+
+Varying values of the slopes according the species. For the comparison of SNPs vs microsat, we only have Passer domesticus, seems congruent. 
+
+

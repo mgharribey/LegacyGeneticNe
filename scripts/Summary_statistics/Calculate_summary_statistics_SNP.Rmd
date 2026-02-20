@@ -1,0 +1,363 @@
+---
+title: "Summary statistics for SNPs datasets (Genetic data v4)"
+author: "MGH"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+      position: left
+    toc_depth: 4
+    number_sections: true
+    df_print: paged
+---
+
+Now, we are going to calculate the summary statistics for SNP datasets. We will include a process of parallelization within R, in order to speed up the calculations. 
+Calculation are splitted into two parts:
+- Estimates within a population: He, Ho, Ar, Fis
+- Pairwise estimates and then averaging for a given population within a dataset: Fst, Gst', Jost's D
+
+# Set-up
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+  eval=FALSE) 
+```
+
+```{r}
+rm(list=ls())
+setwd("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v4")
+```
+
+```{r, warning=FALSE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+
+library(parallel)
+
+library(adegenet)
+library(factoextra)
+library(pegas)
+library(poppr)
+library(hierfstat)
+library(mmod)
+```
+
+Find the folder with the list of genind files to use for the calculation. 
+
+```{r}
+genind_snps_files <- list.files("Genind_datasets/genind_FINAL", pattern = "\\.Rdata$", full.names = TRUE)
+marker_type="snps"
+
+```
+
+# Summary stats by pop
+
+
+```{r}
+compute_diversity_stats <- function(filepath) {
+  tryCatch({
+    
+    load(filepath)
+    genind_data_name <- sub("\\.Rdata$", "", basename(filepath))
+    genind_data <- get(genind_data_name)
+    
+    #to follow what's going on
+    marker_file <- paste0("Summary_statistics/state_parallel_sum_div/progress_", basename(filepath), ".txt")
+    writeLines(paste("Started at", Sys.time()), con = marker_file)
+    
+    pops_list <- seppop(genind_data, drop = TRUE)
+    
+    n_ind_per_pop <- sapply(pops_list, nInd)
+    
+    #locus per pop
+    n_loci_per_pop <- sapply(pops_list, nLoc)
+    max_loci <- max(n_loci_per_pop)
+    
+    # Heterozygosity
+    Hobs <- t(sapply(pops_list, function(ls) {
+                                  hobs_vec <- summary(ls)$Hobs
+                                  length(hobs_vec) <- max_loci
+                                  return(hobs_vec)
+              }))
+    Hexp <- t(sapply(pops_list, function(ls) {
+                                  hexp_vec <- summary(ls)$Hexp
+                                  length(hexp_vec) <- max_loci
+                                  return(hexp_vec)
+                                  }))
+    
+    Hobs.pop <- apply(Hobs, 1, mean, na.rm = TRUE)
+    Hexp.pop <- apply(Hexp, 1, mean, na.rm = TRUE)
+    
+    names(Hobs.pop) <- levels(genind_data@pop)
+    names(Hexp.pop) <- levels(genind_data@pop)
+    
+    #pi Milesi
+    sum.Hexp.pop <- apply(Hexp, 1, sum, na.rm = TRUE)
+    n_all <- table(genind_data@pop)*2 #number of allele copies
+    L <- nLoc(genind_data)
+    pi_milesi <- (n_all/(L*(n_all-1)))*sum.Hexp.pop
+    
+    cat(paste("Ho, He, Pi ok", Sys.time()), file=marker_file, append=TRUE)
+    
+    # Allelic Richness
+    Richness <- allelic.richness(genind_data, diploid = TRUE)
+    Richness_mean <- colMeans(as.matrix(Richness$Ar), na.rm = TRUE)
+    
+    cat(paste("Ar ok", Sys.time()), file=marker_file, append=TRUE)
+    
+    # Fis
+    Fis <- t(sapply(seppop(genind_data), function(ls) basic.stats(ls)$perloc$Fis))
+    Fis.pop <- rowMeans(as.matrix(Fis), na.rm = TRUE)
+    
+    cat(paste("Fis ok", Sys.time()), file=marker_file, append=TRUE)
+      
+    # DEBUG: log the structure before data.frame creation
+    cat(sprintf("Hobs.pop length: %d\n", length(Hobs.pop)), file = marker_file, append = TRUE)
+    cat(sprintf("Hexp.pop length: %d\n", length(Hexp.pop)), file = marker_file, append = TRUE)
+    cat(sprintf("pi_milesi length: %d\n", length(pi_milesi)), file = marker_file, append = TRUE)
+    cat(sprintf("Richness_mean length: %d\n", length(Richness_mean)), file = marker_file, append = TRUE)
+    cat(sprintf("Fis.pop length: %d\n", length(Fis.pop)), file = marker_file, append = TRUE)
+    cat(sprintf("n.by.pop length: %d\n", length(Sum$n.by.pop)), file = marker_file, append = TRUE)
+    
+    
+    return(list(
+      "Pop" = names(Hobs.pop),
+      "n_ind" = as.vector(n_ind_per_pop),
+      "n_loci" = as.vector(n_loci_per_pop),
+      "Hobs" = as.vector(Hobs.pop),
+      "Hexp" = as.vector(Hexp.pop),
+      "Pi_Milesi"= as.vector(pi_milesi),
+      "Ar" = as.vector(Richness_mean),
+      "Fis" = as.vector(Fis.pop),
+      "Dataset" = genind_data_name,
+      "Marker_type" = marker_type,
+      "status" = "success"
+    ))
+    
+    
+  }, error = function(e) {
+    cat(paste("Failed to run", Sys.time()), file = marker_file, append = TRUE)
+    return(list(
+      "data" = NULL,
+      "status" = "failed",
+      "error" = e$message,
+      "file" = basename(filepath)))
+  })
+  
+  #info about the time
+  cat(paste("Finished at", Sys.time()), file=marker_file, append=TRUE)
+}
+
+# for the parallelisation
+n_cores <- detectCores() - 1
+cl <- makeCluster(n_cores, type = "PSOCK")
+# Load packages on workers
+clusterEvalQ(cl, {
+  library(adegenet)
+  library(hierfstat)
+})
+
+clusterExport(cl, c("compute_diversity_stats", "marker_type"), envir = environment())
+
+# run in parallel
+Summary_div_stats <- parLapplyLB(cl, genind_snps_files, compute_diversity_stats)
+names(Summary_div_stats) <- sub("\\.Rdata$", "", basename(genind_snps_files))
+
+```
+
+```{r}
+#clean the cluster
+stopCluster(cl)
+gc() 
+```
+
+
+
+We need to check if there are some problems for some dataset
+```{r}
+failed <- sapply(Summary_div_stats, function(x) {
+  is.null(x) || x$status != "success"
+})
+Summary_div_stats[failed]
+```
+
+Save the file
+```{r}
+save(Summary_div_stats, file="Summary_statistics/snps_summary_div_stats.Rdata")
+```
+
+
+Now store every results in a single tab
+
+```{r}
+df_sum_div_stats <- do.call(rbind, lapply(Summary_div_stats, function(x) {
+    do.call(cbind, x)
+  }))
+df_sum_div_stats <- as.data.frame(df_sum_div_stats)
+
+#save the table
+write.csv(df_sum_div_stats, file="Summary_statistics/snps_summary_div_stats_corrected.csv")
+```
+
+
+# Pairwise values for differentiation stats
+
+## Get the pairwise values
+
+```{r}
+#Function to compute pairwise
+compute_pairwise <- function(filepath) {
+  tryCatch({
+    #get the the genind file
+    load(filepath)
+    genind_data_name <- sub("\\.Rdata$", "", basename(filepath))
+    dataset_all_pop <- get(genind_data_name)
+    
+    #to follow what's going on
+    marker_file <- paste0("Summary_statistics/progress_", basename(filepath), ".txt")
+    writeLines(paste("Started at", Sys.time()), marker_file)
+    
+    #estimate the pairwises
+    fst <- genet.dist(dataset_all_pop, diploid = TRUE, method = "WC84")
+    writeLines(paste("fst ok", Sys.time()), marker_file)
+    
+    gst_pr_nei <- pairwise_Gst_Nei(dataset_all_pop)
+    writeLines(paste("gst ok", Sys.time()), marker_file)
+    
+    jost_D <- pairwise_D(dataset_all_pop)
+    writeLines(paste("jost ok", Sys.time()), marker_file)
+    
+    #load them in a list
+    return(list(
+      "fst" = fst,
+      "gst_pr_nei" = gst_pr_nei,
+      "jost_D" = jost_D,
+      "status" = "success"
+    ))
+  }, error = function(e) {
+    # Return error info instead of crashing
+    return(list(
+      "error" = as.character(e),
+      "status" = "failed"
+    ))
+  })
+  
+  #info about the time
+  elapsed <- difftime(Sys.time(), start_time, units = "secs")
+  writeLines(paste("Finished at", Sys.time()), marker_file)
+  writeLines(paste("In total, last for ", elapsed), marker_file)
+  
+}
+
+# ask parallel execution
+n_cores <- detectCores() - 2
+cl <- makeCluster(n_cores, type = "PSOCK")
+clusterEvalQ(cl, { #load the packages you'll need
+  library(adegenet)
+  library(mmod)
+  library(hierfstat)
+})
+clusterExport(cl, "compute_pairwise", envir = environment())
+
+#apply it on the genind files
+snps_Pairwise_values_by_dataset <- parLapplyLB(cl, genind_snps_files, compute_pairwise)
+names(snps_Pairwise_values_by_dataset) <- sub("\\.Rdata$", "", basename(genind_snps_files))
+
+```
+
+```{r}
+# Check which ones failed
+failed <- sapply(snps_Pairwise_values_by_dataset, function(x) x$status == "failed")
+if (any(failed)) {
+  message("Failed files:")
+  print(genind_snps_files[failed])
+  print(sapply(results[failed], function(x) x$error))
+}
+
+#clean the cluster
+stopCluster(cl)
+gc() 
+```
+
+
+Save all
+```{r}
+save(snps_Pairwise_values_by_dataset,file="Summary_statistics/snps_Pairwise_values_by_dataset.Rdata")
+```
+
+
+## Average pairwise values for a given pop
+
+
+```{r}
+
+mean_Pairwise_values_by_pop_snps <- matrix(ncol=4, nrow=0)
+
+for (i in names(snps_Pairwise_values_by_dataset)){
+  stats_diff <- c("fst","gst_pr_nei","jost_D")
+  for (measure in stats_diff){
+    
+    labels <- attr(snps_Pairwise_values_by_dataset[[i]][[measure]], "Labels")
+    values <- as.matrix(snps_Pairwise_values_by_dataset[[i]][[measure]])
+    
+    for (pop in labels){
+      all_pairwise_1pop <- values[pop, ]
+      all_pairwise_1pop <- all_pairwise_1pop[names(all_pairwise_1pop) != pop] #to remove pop itself
+      
+      mean_Pairwise_values_by_pop_snps <- rbind(mean_Pairwise_values_by_pop_snps,
+                                           c(Dataset = i,
+                                              Diff_stat = measure, 
+                                              Pop = pop,
+                                              mean_pairwise = mean(all_pairwise_1pop)))
+    }
+    
+  }
+}
+rm(i,stats_diff,measure,labels,values,pop,all_pairwise_1pop)
+
+mean_Pairwise_values_by_pop_snps <- as.data.frame(mean_Pairwise_values_by_pop_snps)
+mean_Pairwise_values_by_pop_snps$mean_pairwise <- as.numeric(mean_Pairwise_values_by_pop_snps$mean_pairwise)
+
+mean_Pairwise_values_by_pop_snps <- mean_Pairwise_values_by_pop_snps %>%
+                                                pivot_wider(names_from = Diff_stat, values_from = mean_pairwise)
+
+# there is a just a problem in the name of the pop for Symphonia, let's rename them
+mean_Pairwise_values_by_pop_snps <- mean_Pairwise_values_by_pop_snps %>% mutate(Pop=case_when(
+                                                          Pop == "gen_Symphonia_globulifera_Schmitt2021_Gargiulo2024_Species1" ~ "Species1",
+                                                          Pop == "gen_Symphonia_globulifera_Schmitt2021_Gargiulo2024_Species2" ~ "Species2",
+                                                          Pop == "gen_Symphonia_globulifera_Schmitt2021_Gargiulo2024_Species3" ~ "Species3",
+                                                          TRUE ~ Pop
+))
+
+
+#check that it's all good
+head(mean_Pairwise_values_by_pop_snps)
+tail(mean_Pairwise_values_by_pop_snps)
+```
+
+```{r}
+#saving
+write.table(mean_Pairwise_values_by_pop_snps, file="Summary_statistics/snps_mean_Pairwise_values_by_pop.csv", sep=";")
+```
+
+# Save the data in a single tab
+
+Gather the tabs in a single one
+
+Add this to the summary diversity statistics 
+
+```{r}
+Summary_div_stats <- read.csv("Summary_statistics/snps_summary_div_stats.csv")
+mean_Pairwise_values_by_pop_snps <- read.csv("Summary_statistics/snps_mean_Pairwise_values_by_pop.csv", sep=";")
+
+Summary_div_stats_snps <- Summary_div_stats %>% left_join(mean_Pairwise_values_by_pop_snps %>% select(-Dataset), by="Pop")
+
+# CHECK IT'S ALL GOOD BEFORE SAVING
+write.csv(Summary_div_stats_snps, file="Summary_statistics/snps_summary_div_diff_stats_by_pop.csv", row.names = FALSE)
+```
+
+

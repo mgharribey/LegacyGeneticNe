@@ -1,0 +1,849 @@
+---
+title: "Convert microsat files into genind object"
+author: "MGH"
+date: "2024-10-08"
+output:
+  html_document:
+  toc: true
+  toc_float:
+  collapsed: false
+  smooth_scroll: true
+  position: left
+  toc_depth: 4
+  number_sections: true
+  df_print: paged
+---
+
+This code aims to convert all the SSR files (in .csv format) into Genind objects. 
+These genind object will have the identified individuals and their assigned population. See in the Material & methods of the corresponding publication Harribey et al. 2026, part "Population delimitation" for more details on the choices made for population delimitation. 
+
+To begin with, I gathered all the SSR data in a single folder. 
+I modify by hand theses files to have a column with Ind, Population and then columns with SSR data. 
+Don't forget to remove special characters, in particular for Population names!!!
+All files but two were publicly shared in the ".csv" format. 
+
+# Set-up
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+  eval=FALSE) 
+```
+
+```{r, include=FALSE}
+rm(list=ls(all=TRUE))
+#!!!!! Change directory according your own directory !!!!!
+setwd("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v2")
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(adegenet)
+library(poppr)
+library(RClone)
+library(hierfstat)
+```
+
+
+# Assign individuals to their population
+
+In most cases, the Population of a given individual is known from the original study and can be directly used for the assignation within the Genind object we will create just herafter. 
+
+## Special cases 
+
+### Canis_lupus_Szewczyk_2019
+
+A "population" is called "Putative disperser", gather potential dispersers (see in the paper for more info)
+So let's remove it
+
+```{r}
+i = "filtered_data/microsat_checked/Canis_lupus_Szewczyk_2019.csv"
+raw_data <- read.csv(i, sep=";")
+  
+#Remove the pop called "putative disperser"
+  
+raw_data <- raw_data %>% 
+              filter(Population != "putative disperser")
+print(table(raw_data$Population))
+ 
+ #save this new dataset in a file
+j=sub(".*/(.*)\\..*", "\\1", i)
+write.table(raw_data, file=paste0("filtered_data/microsat_checked/",j,".csv"), row.names=FALSE, sep=";")
+  
+```
+
+
+### Passer domesticus
+
+We have population + sampling year. But as generation time is 1.7 year for that species, we can study one location and one year at a time 
+```{r}
+i = "filtered_data/microsat_checked/Passer_domesticus_Baalsrud_2013.csv"
+raw_data <- read.csv(i, sep=";")
+
+raw_data <- raw_data %>%
+  separate(Population, into = c("Location", "Year"), sep = "-", convert = TRUE)
+
+#Count how many populations by year 
+raw_data %>%
+  distinct(Location, Year) %>%    
+  group_by(Year) %>%              
+  summarise(n_locations = n())   
+```
+
+So I am selecting the year with the more populations = 1994, 2000, 2006
+
+```{r}
+raw_data_1994 <- raw_data %>%
+                    filter(Year == 1994) %>%
+                    unite("Population", Location, Year, sep = "-")
+
+raw_data_2000 <- raw_data %>%
+                    filter(Year == 2000) %>%
+                    unite("Population", Location, Year, sep = "-")
+
+raw_data_2006 <- raw_data %>%
+                    filter(Year == 2006) %>%
+                    unite("Population", Location, Year, sep = "-")
+
+
+#let's save all these files
+write.table(raw_data_1994, file="filtered_data/microsat_checked/Passer_domesticus_Baalsrud_2013_pop_1994.csv", row.names=FALSE, sep=";")
+write.table(raw_data_2000, file="filtered_data/microsat_checked/Passer_domesticus_Baalsrud_2013_pop_2000.csv", row.names=FALSE, sep=";")
+write.table(raw_data_2006, file="filtered_data/microsat_checked/Passer_domesticus_Baalsrud_2013_pop_2006.csv", row.names=FALSE, sep=";")
+```
+
+
+Don't forget to remove the orinal file with locations and years mixed "Passer_domesticus_Baalsrud_2013_pop.csv"
+
+### Mya arenaria
+
+remove individuals with missing data --> in the paper, they remove individuals with more than 4 SSR with missing data
+
+```{r}
+#load file
+name_new_file="Mya_arenaria_DeNoia_2020"
+
+i=paste0("raw_data/microsat/",name_new_file,".csv")
+raw_data <- read.csv(i, sep=";")
+
+
+#check for individuals with more than 4 loci not genotyped
+raw_data <- raw_data[rowSums(is.na(raw_data)) < 8,]
+```
+
+Okay so already filtered, nice!
+
+
+### Coenagrion mercuriale
+
+We will use the results of genetic clustering as a basis for population delimitation (Leveque et al. 2024).
+
+```{r}
+#load file
+name_new_file="Coenagrion_mercuriale_Leveque_2024"
+
+i=paste0("raw_data/microsat/",name_new_file,".csv")
+raw_data <- read.csv("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Raw_genetic_data/new/Coenagrion_mercuriale_Leveque_2024/data_SSRs.csv", sep=";")
+
+#see the pop
+table(raw_data$Population)
+
+#column sampling-loc
+raw_data$Sampling <- gsub("-.*","",raw_data$Population)
+raw_data$Sampling_Year <- gsub(".*-","",raw_data$Population)
+
+#Metapop
+name_metapop <- read.delim("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Raw_genetic_data/new/Coenagrion_mercuriale_Leveque_2024/group_pop_genetic_clustering.csv", sep=";")
+
+raw_data <- raw_data %>% left_join(name_metapop, by="Sampling") %>% mutate(Population= case_when(
+                        !is.na(Metapop) ~ paste0(Metapop,"-",Sampling_Year),
+                                 TRUE ~ paste0(Sampling,"-",Sampling_Year)))
+
+#see the pop
+table(raw_data$Population)
+length(table(raw_data$Population))
+
+#remove the pop with only one sampling and no cluster assignation
+raw_data <- raw_data %>% filter(!Population %in% c("Gox1-2022","S21-2021","S21-2022","Zp0-2022","Zp1-2022","Zp2-2022"))
+ #save this new dataset in a file
+length(table(raw_data$Population))
+
+write.table(raw_data %>% select(-Sampling,-Sampling_Year,-Metapop), file=paste0("raw_data/microsat/",name_new_file,".csv"), row.names=FALSE, sep=";")
+```
+
+### Ursus arctos
+
+```{r}
+name_new_file="Ursus_arctos_Kopatz_2021"
+
+i=paste0("raw_data/microsat/",name_new_file,".csv")
+raw_data <- read.csv(i, sep=";")
+
+table(raw_data$Population)
+```
+
+Population assignation checked in details, but not presented here. The assignation of individuals to a population was checked and studied using the admixture coefficients of genetic clustering from the original study, combined with geographic data and information from a corresponding SNP dataset (Kopatz et al. 2024). The corresponding codes are not available here but can be shared on request. 
+
+
+There are individuals with only missing data so let's remove them now to don't have trouble later
+
+```{r}
+raw_data <- raw_data %>% drop_na(all_of(names(raw_data)[3:26]))
+
+write.table(raw_data, file="filtered_data/microsat_checked/Ursus_arctos_Kopatz_2021.csv", row.names=FALSE, sep=";")
+```
+
+
+
+# Get a Genind object
+
+This format of file is useful to treat with DNA dataset (and will be a common format between snp and microsat data)
+I am going to conserve this genind object into an .Rdata file
+
+```{r}
+files_list <- list.files("filtered_data/microsat_checked/", full.names = TRUE)
+
+#files_list <- files_list[files_list != "filtered_data/microsat_checked/Canis_lupus_Szewczyk_2019_pop.csv"]
+
+for (i in files_list){
+  
+  #load the dataset
+  print(i)
+  raw_data <- read.csv(i, sep=";") #check to be sure
+  
+  
+
+  #construction of adequate dataframe to transform it into a genind object
+  allele1 <- as.matrix(raw_data[,seq(3,ncol(raw_data)-1,by=2)])
+  allele2 <- as.matrix(raw_data[,seq(4,ncol(raw_data),by=2)])
+  gt <- as.data.frame(matrix( paste( allele1, allele2, sep = "/"), ncol = (ncol(raw_data)-2)/2))
+  colnames(gt)<-colnames(raw_data[,seq(3,ncol(raw_data)-1,by=2)])
+
+  #Transform it into a genind object
+  genind_data <- df2genind(gt, 
+                         pop = raw_data$Population, 
+                         ind.names = raw_data$Ind,
+                         ploidy = 2, 
+                         #ncode=3,
+                         NA.char = "0",
+                         sep="/"
+                         )
+
+  #rename it
+  genind_name <-  paste0("genind_", sub(".*/(.*)\\..*", "\\1", i))
+  assign(genind_name, genind_data)
+
+  #Save the genind object
+  save(list = genind_name,file=paste0("FINAL_datasets/microsat/",genind_name,".Rdata"))
+  
+  #cleaning
+  rm(allele1,allele2,gt,genind_data)
+
+}
+ 
+```
+
+
+## Other format of data
+
+Two datasets were already provided as Genepop files: Alytes obstetricans, Barratt et al. 2024 and Graellsia isabellae, Gonzales-Castellano et al. 2023. The file could directly be loaded as a Genind object with the function "read_genepop" of adegenet. 
+
+
+```{r}
+i="Graellsia_isabellae_GonzalesCastellano_2023"
+genind_graell <- read.genepop("raw_data/microsat/Graellsia_isabellae_GonzalesCastellano_2023.gen")
+
+#check
+nPop(genind_graell)
+nInd(genind_graell)
+nLoc(genind_graell)
+```
+
+```{r}
+i="Alytes_obstetricans_Barratt_2024"
+genind_alyt <- read.genepop("raw_data/microsat/Alytes_obstetricans_Barratt_2024.gen",ncode=3)
+
+#check
+nPop(genind_alyt)
+nInd(genind_alyt)
+nLoc(genind_alyt)
+
+pop_sizes <- table(pop(genind_alyt))
+
+```
+
+
+# Special case of Cypripedium calceolus: clone correction
+
+See in Gargiulo et al. (2023) --> the raw SSRs dataset need a correction for clones
+MLG or MLL clone correction is possible + HW equilibirum correction
+Using code from https://github.com/anchampion/Ne_estimation_EcM_fungi
+
+```{r}
+rm(list=ls())
+```
+
+```{r}
+load("FINAL_datasets/microsat/genind_Cypripedium_calceolus_Gargiulo_2023.Rdata")
+genind_Cypripedium_calceolus_Gargiulo_2023
+```
+
+Correction for clone with poppr package
+
+```{r}
+data.df <- genind2df(genind_Cypripedium_calceolus_Gargiulo_2023)
+popvec <- data.df[,1] # pop info (if present)
+dataset <- data.df[,2:ncol(data.df)]# dataset
+dataset <- as.data.frame(apply(dataset, 2, function(x) replace(x, is.na(x), "000000"))) # replace NAs by 000000
+data2 <- convert_GC(dataset, 3) # we use "3" because this is the length of the allele
+row.names(data2) <- seq_len(nrow(data2)) # make rownames consecutive integers starting from 1 to avoid bugs
+head(data2)
+```
+
+```{r}
+# List unique alleles per locus
+list_all_tab(data2)
+```
+
+Determining MLGs. 
+
+```{r}
+MLGlist <- MLG_list(data2)
+# Allelic frequencies :
+freq_RR(data2)
+```
+
+```{r}
+#genetic distances computation, distance on allele differences:
+respop <- genet_dist(data2) # max 10 differences between genotypes
+```
+
+
+```{r}
+# Extract one individual from each MLG 
+new_ind <- sapply(MLGlist, `[[`, 1)
+new_ind <- as.numeric(new_ind);new_ind
+```
+
+```{r}
+rownames(genind_Cypripedium_calceolus_Gargiulo_2023@tab)<-c(1:1123) # if ids are not set to 1,2,3,...n
+selected_indices <- match(new_ind, rownames(genind_Cypripedium_calceolus_Gargiulo_2023@tab));selected_indices
+```
+
+```{r}
+# Create a new genind object without the clonal individuals
+data_noclones <- genind_Cypripedium_calceolus_Gargiulo_2023[selected_indices, ]
+# Check if the genind object is correct
+data_noclones
+```
+
+Let's save it as our new genind object
+
+```{r}
+genind_Cypripedium_calceolus_Gargiulo_2023 <- data_noclones
+genind_Cypripedium_calceolus_Gargiulo_2023
+
+save(genind_Cypripedium_calceolus_Gargiulo_2023, file=("FINAL_datasets/microsat/genind_Cypripedium_calceolus_Gargiulo_2023.Rdata"))
+```
+
+
+
+# Check pairwise differentiation between sampling location
+
+If there is no significant differences and the locations are geographically close, we can consider gathering the sampling locations together and consider them as a single population. 
+
+### Mya arenaria
+
+```{r}
+i="Mya_arenaria_DeNoia_2020"
+load("FINAL_datasets/microsat/genind_Mya_arenaria_DeNoia_2020.Rdata")
+
+genind_mya <- genind_Mya_arenaria_DeNoia_2020
+
+#check
+nPop(genind_mya)
+nInd(genind_mya)
+nLoc(genind_mya)
+```
+Genetic differentiation between pop
+```{r}
+pairw_fst_mya <- genet.dist(genind_mya, diploid=TRUE, method="WC84")
+pairw_fst_mya
+
+#turn matrix fst in a dataframe
+Fst <- as.matrix(pairw_fst_mya)
+Fst.df <- reshape2::melt(Fst, varnames = c('Site1', 'Site2'), value.name="Fst", na.rm = TRUE)
+Fst.df <- Fst.df %>% distinct()
+head(Fst.df)
+
+#Check significance
+bornes_fst <- boot.ppfst(genind_mya, nboot = 1000)
+non_significant_fst <- (bornes_fst$ll < 0) & (bornes_fst$ul > 0) # lower limit < 0 and upper limit > 0 = contains 0
+pop_non_sign <- which(non_significant_fst == TRUE, arr.ind = TRUE)
+pop_non_sign <- data.frame(
+  Site1 = rownames(non_significant_fst)[pop_non_sign[,1]],
+  Site2 = colnames(non_significant_fst)[pop_non_sign[,2]]
+)
+pop_non_sign$Sign <- "NS"
+pop_non_sign <- pop_non_sign %>%
+  bind_rows(pop_non_sign %>%
+              rename(Site1 = Site2, Site2 = Site1))
+pop_non_sign
+#empty so no pop non sign
+
+
+g <- ggplot(data = Fst.df, aes(x = Site1, y = Site2, fill = Fst))+
+  geom_tile(colour = "black")+
+  #geom_text(data = subset(Fst.Pvalues.df, Sign == "NS"), aes(label = Sign), color = "black", size = 3)+
+  scale_fill_gradient2(low = "#4B0055FF", mid = "#009796FF", high = "#FDE333FF")+
+  scale_x_discrete(expand = c(0,0), )+
+  scale_y_discrete(expand = c(0,0), position = "right")+
+  theme(axis.text = element_text(colour = "black", size = 8, angle=45, vjust=1, hjust=1),
+        axis.title = element_blank(),
+        panel.grid = element_blank(),
+        panel.background = element_blank(),
+        legend.position = "right",
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 10)
+        )+
+  ggtitle(bquote(
+    atop(.(i), 
+    atop("Pairwise Fst",italic("Pairwise Fst significantly diff from 0 = NS")))
+    ))
+print(g)
+ggsave(g,file=paste0("raw_data/microsat/Population_assignation/Matrix_pairwise_Fst_",i,".pdf"))
+```
+
+### Rana arvalis
+
+Here sampling locations correspond to patches, and can be very close. Note that the sampling area here is very restricted to one sample zone in the area. 
+
+```{r}
+i="Rana_arvalis_Cox_2024"
+load("FINAL_datasets/microsat/genind_Rana_arvalis_Cox_2024.Rdata")
+
+genind_rana <- genind_Rana_arvalis_Cox_2024
+
+#check
+nPop(genind_rana)
+nInd(genind_rana)
+nLoc(genind_rana)
+```
+
+Genetic differentiation between pop
+```{r}
+pairw_fst_rana <- genet.dist(genind_rana, diploid=TRUE, method="WC84")
+pairw_fst_rana
+
+#turn matrix fst in a dataframe
+Fst <- as.matrix(pairw_fst_rana)
+Fst.df <- reshape2::melt(Fst, varnames = c('Site1', 'Site2'), value.name="Fst", na.rm = TRUE)
+Fst.df <- Fst.df %>% distinct()
+head(Fst.df)
+
+#Check significance
+bornes_fst <- boot.ppfst(genind_rana, nboot = 1000)
+non_significant_fst <- (bornes_fst$ll < 0) & (bornes_fst$ul > 0) # lower limit < 0 and upper limit > 0 = contains 0
+pop_non_sign <- which(non_significant_fst == TRUE, arr.ind = TRUE)
+pop_non_sign <- data.frame(
+  Site1 = rownames(non_significant_fst)[pop_non_sign[,1]],
+  Site2 = colnames(non_significant_fst)[pop_non_sign[,2]]
+)
+pop_non_sign$Sign <- "NS"
+pop_non_sign <- pop_non_sign %>%
+  bind_rows(pop_non_sign %>%
+              rename(Site1 = Site2, Site2 = Site1))
+pop_non_sign
+
+#join the two tabs in one
+Fst.Pvalues.df <- left_join(Fst.df,pop_non_sign,by=c("Site1","Site2"))
+head(Fst.Pvalues.df)
+
+
+g <- ggplot(data = Fst.Pvalues.df, aes(x = Site1, y = Site2, fill = Fst))+
+  geom_tile(colour = "black")+
+  geom_text(data = subset(Fst.Pvalues.df, Sign == "NS"), aes(label = Sign), color = "black", size = 3)+
+  scale_fill_gradient2(low = "#4B0055FF", mid = "#009796FF", high = "#FDE333FF")+
+  scale_x_discrete(expand = c(0,0), )+
+  scale_y_discrete(expand = c(0,0), position = "right")+
+  theme(axis.text = element_text(colour = "black", size = 8, angle=45, vjust=1, hjust=1),
+        axis.title = element_blank(),
+        panel.grid = element_blank(),
+        panel.background = element_blank(),
+        legend.position = "right",
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 10)
+        )+
+  ggtitle(bquote(
+    atop(.(i), 
+    atop("Pairwise Fst",italic("Pairwise Fst significantly diff from 0 = NS")))
+    ))
+print(g)
+ggsave(g,file=paste0("raw_data/microsat/Population_assignation/Matrix_pairwise_Fst_",i,".pdf"))
+```
+
+So we will gather some of the patches together as single population. 
+
+```{r}
+ind_pop_tab <- data.frame(Ind=indNames(genind_data),
+                          Pop_or=pop(genind_data))
+
+ind_pop_tab <- ind_pop_tab %>%
+                dplyr::mutate(Pop_final=case_when(
+                  Pop_or %in% c("patch_22A","patch_22B","patch_22C","patch_25") ~ "patch_22_25" , ############# TO BE MODIFIED #############
+                   Pop_or %in% c("patch_3","patch_4","patch_5","patch_6","patch_7") ~ "patch_3_4_5_6_7" ,
+                  Pop_or %in% c("patch_10","patch_11") ~ "patch_10_11" ,
+                  Pop_or %in% c("patch_13","patch_14") ~ "patch_13_14" ,
+                  Pop_or %in% c("patch_16","patch_17") ~ "patch_16_17" ,
+                  TRUE ~ Pop_or
+                ))
+
+
+table(ind_pop_tab$Pop_final)
+
+
+#assign this pop names to genind object
+pop(genind_data) <- ind_pop_tab$Pop_final
+```
+
+```{r}
+pop_counts <- table(genind_data@pop)
+  pops_to_keep <- names(pop_counts[pop_counts >= 20])
+  
+  #filter the genind
+  genind_data_filtered <- genind_data[pop(genind_data) %in% pops_to_keep, ]
+  print(table(genind_data_filtered@pop))
+  
+  #save it
+  assign(paste0("gen_",i), genind_data_filtered)
+  save(list=paste0("gen_",i),file=paste0("gen_",i,".Rdata"))
+  write.csv(ind_pop_tab, file="Ind_pop_assignation_Rana_arvalis.csv")
+```
+
+### Gasterosteus aculeatus
+
+```{r}
+i="Gasterosteus_aculeatus_Raeymaekers_2008"
+load("FINAL_datasets/microsat/genind_Gasterosteus_aculeatus_Raeymaekers_2008.Rdata")
+
+genind_gast <- genind_Gasterosteus_aculeatus_Raeymaekers_2008
+
+#check
+nPop(genind_gast)
+nInd(genind_gast)
+nLoc(genind_gast)
+```
+Genetic differentiation between pop
+```{r}
+pairw_fst_gast <- genet.dist(genind_gast, diploid=TRUE, method="WC84")
+pairw_fst_gast
+
+#turn matrix fst in a dataframe
+Fst <- as.matrix(pairw_fst_gast)
+Fst.df <- reshape2::melt(Fst, varnames = c('Site1', 'Site2'), value.name="Fst", na.rm = TRUE)
+Fst.df <- Fst.df %>% distinct()
+head(Fst.df)
+
+#Check significance
+bornes_fst <- boot.ppfst(genind_gast, nboot = 1000)
+non_significant_fst <- (bornes_fst$ll < 0) & (bornes_fst$ul > 0) # lower limit < 0 and upper limit > 0 = contains 0
+pop_non_sign <- which(non_significant_fst == TRUE, arr.ind = TRUE)
+pop_non_sign <- data.frame(
+  Site1 = rownames(non_significant_fst)[pop_non_sign[,1]],
+  Site2 = colnames(non_significant_fst)[pop_non_sign[,2]]
+)
+pop_non_sign
+#empty so no pop non sign
+
+
+g <- ggplot(data = Fst.df, aes(x = Site1, y = Site2, fill = Fst))+
+  geom_tile(colour = "black")+
+  #geom_text(data = subset(Fst.Pvalues.df, Sign == "NS"), aes(label = Sign), color = "black", size = 3)+
+  scale_fill_gradient2(low = "#4B0055FF", mid = "#009796FF", high = "#FDE333FF")+
+  scale_x_discrete(expand = c(0,0), )+
+  scale_y_discrete(expand = c(0,0), position = "right")+
+  theme(axis.text = element_text(colour = "black", size = 8, angle=45, vjust=1, hjust=1),
+        axis.title = element_blank(),
+        panel.grid = element_blank(),
+        panel.background = element_blank(),
+        legend.position = "right",
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 10)
+        )+
+  ggtitle(bquote(
+    atop(.(i), 
+    atop("Pairwise Fst",italic("Pairwise Fst significantly diff from 0 = NS")))
+    ))
+print(g)
+ggsave(g,file=paste0("raw_data/microsat/Population_assignation/Matrix_pairwise_Fst_",i,".pdf"))
+```
+
+All populations are significantly genetically different. 
+
+
+### Alytes obstetricans
+
+```{r}
+i="Alytes_obstetricans_Barratt_2024"
+genind_alyt <- read.genepop("raw_data/microsat/Alytes_obstetricans_Barratt_2024.gen",ncode=3)
+
+#check
+nPop(genind_alyt)
+nInd(genind_alyt)
+nLoc(genind_alyt)
+
+pop_sizes <- table(pop(genind_alyt))
+valid_pops <- names(pop_sizes[pop_sizes >= 20])
+
+```
+
+```{r}
+pairw_fst_alyt_loc <- genet.dist(genind_alyt, diploid=TRUE, method="WC84")
+pairw_fst_alyt_loc
+
+
+#turn matrix fst in a dataframe
+Fst <- as.matrix(pairw_fst_alyt_loc)
+Fst.df <- reshape2::melt(Fst, varnames = c('Site1', 'Site2'), value.name="Fst", na.rm = TRUE)
+Fst.df <- Fst.df %>% distinct()
+head(Fst.df)
+
+#Check significance
+bornes_fst <- boot.ppfst(genind_alyt, nboot = 1000)
+non_significant_fst <- (bornes_fst$ll < 0) & (bornes_fst$ul > 0) # lower limit < 0 and upper limit > 0 = contains 0
+pop_non_sign <- which(non_significant_fst == TRUE, arr.ind = TRUE)
+pop_non_sign <- data.frame(
+  Site1 = rownames(non_significant_fst)[pop_non_sign[,1]],
+  Site2 = colnames(non_significant_fst)[pop_non_sign[,2]]
+)
+pop_non_sign$Sign <- "NS"
+pop_non_sign <- pop_non_sign %>%
+  bind_rows(pop_non_sign %>%
+              rename(Site1 = Site2, Site2 = Site1))
+pop_non_sign
+
+#join the two tabs in one
+Fst.Pvalues.df <- left_join(Fst.df,pop_non_sign,by=c("Site1","Site2"))
+head(Fst.Pvalues.df)
+
+g <- ggplot(data = Fst.Pvalues.df, aes(x = Site1, y = Site2, fill = Fst))+
+  geom_tile(colour = "black")+
+  geom_text(data = subset(Fst.Pvalues.df, Sign == "NS"), aes(label = Sign), color = "black", size = 3)+
+  scale_fill_gradient2(low = "#4B0055FF", mid = "#009796FF", high = "#FDE333FF")+
+  scale_x_discrete(expand = c(0,0), )+
+  scale_y_discrete(expand = c(0,0), position = "right")+
+  theme(axis.text = element_text(colour = "black", size = 6, angle=45, vjust=1, hjust=1),
+        axis.title = element_blank(),
+        panel.grid = element_blank(),
+        panel.background = element_blank(),
+        legend.position = "right",
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 10)
+        )+
+  ggtitle(bquote(
+    atop(.(i), 
+    atop("Pairwise Fst",italic("Pairwise Fst significantly diff from 0 = NS")))
+    ))
+print(g)
+ggsave(g,file=paste0("raw_data/microsat/Population_assignation/Matrix_pairwise_Fst_",i,".pdf"))
+```
+
+Don't find exactly the same association that we could expect with genetic clustering
+
+Okay, I will gather some populations when there is no genetic diff + very close geographically + belong to the same genetic cluster
+
+```{r}
+ind_pop_tab <- data.frame(Ind=indNames(genind_alyt),
+                          Pop_or=pop(genind_alyt))
+
+ind_pop_tab <- ind_pop_tab %>%
+                dplyr::mutate(Pop_final=case_when(
+                  Pop_or %in% c("pop7","pop11","pop12","pop21","pop23") ~ "MetapopA" , ############# TO BE MODIFIED #############
+                   Pop_or %in% c("pop26","pop27") ~ "MetapopB" ,
+                  Pop_or %in% c("pop8","pop9","pop33") ~ "MetapopC" ,
+                  TRUE ~ Pop_or
+                ))
+
+
+table(ind_pop_tab$Pop_final)
+
+
+#assign this pop names to genind object
+pop(genind_alyt) <- ind_pop_tab$Pop_final
+```
+
+
+Otherwise, simply keep only the locations with more than 20 ind
+
+```{r}
+pop_sizes <- table(pop(genind_alyt))
+valid_pops <- names(pop_sizes[pop_sizes >= 20])
+valid_pops
+
+#filtering that pops
+genind_alyt <- genind_alyt[pop(genind_alyt) %in% valid_pops]
+nPop(genind_alyt)
+nInd(genind_alyt)
+nLoc(genind_alyt)
+
+#rename it
+genind_name <-  paste0("genind_",i)
+assign(genind_name, genind_alyt)
+
+#Save the genind object
+save(list = genind_name,file=paste0("FINAL_datasets/microsat/",genind_name,".Rdata"))
+```
+
+### Graellsia isabellae 
+
+```{r}
+i="Graellsia_isabellae_GonzalesCastellano_2023"
+genind_graell <- read.genepop("raw_data/microsat/Graellsia_isabellae_GonzalesCastellano_2023.gen")
+
+#check
+nPop(genind_graell)
+nInd(genind_graell)
+nLoc(genind_graell)
+```
+
+Genetic differentiation between population 
+```{r}
+pairw_fst_graell <- genet.dist(genind_graell, diploid=TRUE, method="WC84")
+pairw_fst_graell
+
+#turn matrix fst in a dataframe
+Fst <- as.matrix(pairw_fst_graell)
+Fst.df <- reshape2::melt(Fst, varnames = c('Site1', 'Site2'), value.name="Fst", na.rm = TRUE)
+Fst.df <- Fst.df %>% distinct()
+head(Fst.df)
+
+#Check significance
+bornes_fst <- boot.ppfst(genind_graell, nboot = 1000)
+non_significant_fst <- (bornes_fst$ll < 0) & (bornes_fst$ul > 0) # lower limit < 0 and upper limit > 0 = contains 0
+pop_non_sign <- which(non_significant_fst == TRUE, arr.ind = TRUE)
+pop_non_sign <- data.frame(
+  Site1 = rownames(non_significant_fst)[pop_non_sign[,1]],
+  Site2 = colnames(non_significant_fst)[pop_non_sign[,2]]
+)
+pop_non_sign$Sign <- "NS"
+pop_non_sign <- pop_non_sign %>%
+  bind_rows(pop_non_sign %>%
+              rename(Site1 = Site2, Site2 = Site1))
+pop_non_sign
+
+#join the two tabs in one
+Fst.Pvalues.df <- left_join(Fst.df,pop_non_sign,by=c("Site1","Site2"))
+head(Fst.Pvalues.df)
+
+
+g <- ggplot(data = Fst.Pvalues.df, aes(x = Site1, y = Site2, fill = Fst))+
+  geom_tile(colour = "black")+
+  geom_text(data = subset(Fst.Pvalues.df, Sign == "NS"), aes(label = Sign), color = "black", size = 3)+
+  scale_fill_gradient2(low = "#4B0055FF", mid = "#009796FF", high = "#FDE333FF")+
+  scale_x_discrete(expand = c(0,0), )+
+  scale_y_discrete(expand = c(0,0), position = "right")+
+  theme(axis.text = element_text(colour = "black", size = 8, angle=45, vjust=1, hjust=1),
+        axis.title = element_blank(),
+        panel.grid = element_blank(),
+        panel.background = element_blank(),
+        legend.position = "right",
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 10)
+        )+
+  ggtitle(bquote(
+    atop(.(i), 
+    atop("Pairwise Fst",italic("Pairwise Fst significantly diff from 0 = NS")))
+    ))
+print(g)
+ggsave(g,file=paste0("raw_data/microsat/Population_assignation/Matrix_pairwise_Fst_",i,".pdf"))
+```
+
+Okay, I will gather some populations: BUJ-ORD-COT and PLA-ESC-TEL
+Because no genetic diff + very close geographically
+
+```{r}
+ind_pop_tab <- data.frame(Ind=indNames(genind_graell),
+                          Pop_or=pop(genind_graell))
+
+ind_pop_tab <- ind_pop_tab %>%
+                dplyr::mutate(Pop_final=case_when(
+                  Pop_or %in% c("BUJ","ORD","COT") ~ "BUJ-ORD-COT" , ############# TO BE MODIFIED #############
+                   Pop_or %in% c("PLA","ESC","TEL") ~ "PLA-ESC-TEL" ,
+                  TRUE ~ Pop_or
+                ))
+
+
+table(ind_pop_tab$Pop_final)
+
+
+#assign this pop names to genind object
+pop(genind_graell) <- ind_pop_tab$Pop_final
+```
+
+
+Otherwise, simply keep only the locations with more than 20 ind
+
+```{r}
+pop_sizes <- table(pop(genind_graell))
+valid_pops <- names(pop_sizes[pop_sizes >= 20])
+valid_pops
+
+#filtering that pops
+genind_graell <- genind_graell[pop(genind_graell) %in% valid_pops]
+nPop(genind_graell)
+nInd(genind_graell)
+nLoc(genind_graell)
+
+#rename it
+genind_name <-  paste0("genind_",i)
+assign(genind_name, genind_graell)
+
+#Save the genind object
+save(list = genind_name,file=paste0("FINAL_datasets/microsat/",genind_name,".Rdata"))
+```
+
+
+# Filter population with n<20
+
+```{r}
+
+               
+               
+files_list <- paste0("raw_data/microsat/",new_files,".csv")
+files_list
+```
+
+
+```{r}
+genind_datasets <- list.files("FINAL_datasets/microsat/", pattern="\\.Rdata$", full.names = TRUE)
+genind_datasets <- sub("^FINAL_datasets/microsat/", "", genind_datasets)
+genind_datasets <- sub("\\.Rdata", "", genind_datasets)
+
+#new files
+#new_files <- c(#"Antirrhinum_charidemi_HeuertzForrest_2024",
+               #"Rana_arvalis_Cox_2024",
+               #"Mya_arenaria_DeNoia_2020")
+                #"Coenagrion_mercuriale_Leveque_2024")
+                #"Gasterosteus_aculeatus_Raeymaekers_2008")
+
+for (i in genind_datasets){
+  #load the corresponding the genind
+  genind_name <- paste0("FINAL_datasets/microsat/",i,".Rdata")
+  loaded <- load(genind_name)
+  genind_obj <- get(loaded)
+  
+  #get the name of populations with more than 20 individuals
+  pop_counts <- table(genind_obj@pop)
+  pops_to_keep <- names(pop_counts[pop_counts >= 20])
+  
+  #filter the genind
+  genind_obj_filtered <- genind_obj[pop(genind_obj) %in% pops_to_keep, ]
+  print(table(genind_obj_filtered@pop))
+  
+  #save it
+  assign(paste0("gen_",i), genind_obj_filtered)
+  save(list=paste0("gen_",i),file=paste0("FINAL_datasets/microsat_final/",i,".Rdata"))
+
+}
+```
+
