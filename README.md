@@ -1,4 +1,4 @@
-# A life history traits(???) categorizing framework to facilitate broad scale implementation of the Ne500 indicator using DNA data
+# A life history traits categorizing framework to facilitate broad scale implementation of the Ne500 indicator using DNA data
 
 This repository contains the scripts and associated workflow described in the publication [Harribey et al. *in prep.*](*LINK TO ADD*)
 
@@ -16,46 +16,51 @@ This resulted into nine categories combining different range of LHT that constit
 ## Workflow and scripts
 
 The workflow includes different steps hereafter (scripts [here](https://github.com/mgharribey/LegacyGeneticNe/blob/main/scripts))
-This part of the workflow has been implemented as an automatic pipeline into the Galaxy-Ecology platform [](LINK TO ADD). It contains the following steps:
+This part of the workflow has been implemented as an automatic pipeline into the [Galaxy-Ecology platform](LINK TO ADD). It contains the following steps:
 
 ### 1. Filtering of SNP data
 
-Filtering steps were applied to SNP datasets in [VCF format](https://samtools.github.io/hts-specs/VCFv4.5.pdf) to homogeneise and ensure the quality of data and to apply current recommendations regarding genetic estimates of Ne (Hemstrom et al. 2024; Waples 2024). 
-Filtering was performed with [bcftools](https://doi.org/10.1093/gigascience/giab008) with thresholds set-up for genotype quality, read depth, missing data across SNP and individuals or heterozygosity.
-Command lines used, with an automatization for several datasets, can be found [here](https://github.com/mgharribey/LegacyGeneticNe/blob/main/scripts)
+Filtering steps were applied to SNP datasets in [VCF format](https://samtools.github.io/hts-specs/VCFv4.5.pdf) to homogeneise and ensure the quality of data and to apply current recommendations regarding genetic estimates of Ne ([Hemstrom et al. 2024](https://doi.org/10.1038/s41576-024-00738-6); [Waples 2024](https://doi.org/10.1111/1755-0998.13879)). 
+
+Filtering was performed with [bcftools](https://doi.org/10.1093/gigascience/giab008) with thresholds upon genotype quality, read depth, missing data across SNP and individuals or heterozygosity.
+
+[Command lines used](https://github.com/mgharribey/LegacyGeneticNe/blob/main/scripts) also include an automatization for several datasets. 
 
 
 ### 2. Calculation of genetic EBV (Essential Biodiversity Variables) 
 
 First, the process of delimitation of populations in the legacy datasets is available here for [SSR](https://mgharribey.github.io/LegacyGeneticNe/docs/SSR_checking_microsat_files.html) and [SNP](https://mgharribey.github.io/LegacyGeneticNe/docs/SNP_Filt_pop_assignation_transfo_VCF_Genind.html) data
-(not included in the Galaxy-Ecology workflow)
+(not included in the Galaxy-Ecology workflow). 
 
 You can find the codes to compute:
-- Genetic summary statistics for [SSR](https://mgharribey.github.io/LegacyGeneticNe/docs/Calculate_summary_statistics_SSR.html) and [SNP, with the implementation of a parallelization in R, reducing computation time](https://mgharribey.github.io/LegacyGeneticNe/docs/Calculate_summary_statistics_SNP.html) data
-- [Population-specific Fst with the Bayescan software and summarize the results](https://mgharribey.github.io/LegacyGeneticNe/docs/code_for_bayescan_prep_and_results.html)
+- Genetic summary statistics for [SSR data](https://mgharribey.github.io/LegacyGeneticNe/docs/Calculate_summary_statistics_SSR.html) and [SNP data](https://mgharribey.github.io/LegacyGeneticNe/docs/Calculate_summary_statistics_SNP.html), with a parallelization process in R, reducing computation time
+- [Population-specific Fst with the Bayescan software](https://mgharribey.github.io/LegacyGeneticNe/docs/code_for_bayescan_prep_and_results.html) and summarize the results
 - Estimates of [isolation-by-distance](https://mgharribey.github.io/LegacyGeneticNe/docs/IBD_calculation.html) using the [Rousset (1997) approach](https://doi.org/10.1093/genetics/145.4.1219)
 
 
 ### 3. Estimations of contemporary Ne
 
 Estimation of effective population size using NeLD in NeEstimator (Do et al. 2014) in different populations across datasets has been implemented in an [automatic way for SSR](https://mgharribey.github.io/LegacyGeneticNe/docs/NeEstims_withNeLD_SSR.html), using [RLDNe R package](https://github.com/zakrobinson/RLDNe). 
-The same [pipeline adpated for SNP](https:/mgharribey.github.io/LegacyGeneticNe/docs/NeEstims_withNeLD_SNP.html) also includes the creation of replicates subsetting the number of loci when their number is sufficient. 
 
-We also used two other software to compare the estimation of Ne with NeLD: [Estim for SSR](https://doi.org/10.1046/j.1471-8278.2001.00086.x.) and [ONeSAMP 3.0 for SNPs](https://doi.org/10.1093/g3journal/jkae153) populations with a small expected Ne. 
+The same [pipeline adpated for SNP](https://mgharribey.github.io/LegacyGeneticNe/docs/NeEstims_withNeLD_SNP.html) also includes the creation of replicates subsetting the number of loci when their number is sufficient and a correction for pseudoreplication ([Waples et al. 2016](https://doi.org/10.1038/hdy.2016.60)). 
+
+We also used two other software to compare the estimation of Ne with NeLD: [Estim for SSR](https://doi.org/10.1046/j.1471-8278.2001.00086.x.) and [ONeSAMP 3.0 for SNPs](https://doi.org/10.1093/g3journal/jkae153) populations with a small expected Ne (not included in the Galaxy-Ecology workflow). 
+
 You may find [scripts reencoding SNP data for ONeSAMP 3.0](https://mgharribey.github.io/LegacyGeneticNe/docs/NeEstims_withONeSAMP3.html) useful. 
 
 
-## Useful scripts to plot the results as shown in the publication
+## Scripts to plot the results as shown in the publication
 
-Codes to reproduce figures from the article can be found below. The genetic EBV and NeLD estimates from Table S8 can be used. 
+Codes to reproduce figures from the article can be found below, using genetic EBV and NeLD estimates from Table S8. 
 
 *in prep.*
 
 
 ## Data statement
 
-All datasets used for this study are published data, you can find datasets references and their original repositories in the Supplementary data (Table S5) of Harribey et al. *in prep.*. 
-However, data have been reformatted and converted into both SNP and SSR specific formats for analyses.
+All datasets used for this study are published data, you can find datasets references and their original repositories in Table S5. 
+
+Data have been reformatted and converted into both SNP and SSR specific formats for analyses.
 
 
 ## Sources
@@ -69,6 +74,8 @@ However, data have been reformatted and converted into both SNP and SSR specific
 - Do, C., R. S. Waples, D. Peel, G. M. Macbeth, B. J. Tillett, et J. R. Ovenden. 2014. « NEESTIMATOR v2: Re‐implementation of Software for the Estimation of Contemporary Effective Population Size ( N  e  ) from Genetic Data ». Molecular Ecology Resources 14 (1): 209‑14. https://doi.org/10.1111/1755-0998.12157.
 
 - Foll, Matthieu, et Oscar Gaggiotti. 2008. « A Genome-Scan Method to Identify Selected Loci Appropriate for Both Dominant and Codominant Markers: A Bayesian Perspective ». Genetics 180 (2): 977‑93. https://doi.org/10.1534/genetics.108.092221.
+
+- Hemstrom, William, Jared A. Grummer, Gordon Luikart, et Mark R. Christie. 2024. « Next-Generation Data Filtering in the Genomics Era ». Nature Reviews Genetics, juin 14, 1‑18. https://doi.org/10.1038/s41576-024-00738-6.
 
 - Hong, Aaron, Rebecca G. Cheek, Suhashi Nihara De Silva, et al. 2024. « ONeSAMP 3.0: Estimation of Effective Population Size via SNP Data from One Population ». G3 Genes|Genomes|Genetics, juillet 12, jkae153. https://doi.org/10.1093/g3journal/jkae153.
 
