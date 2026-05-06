@@ -24,7 +24,7 @@ Filtering steps were applied to SNP datasets in [VCF format](https://samtools.gi
 
 Filtering was performed with [bcftools](https://doi.org/10.1093/gigascience/giab008) with thresholds upon genotype quality, read depth, missing data across SNP and individuals or heterozygosity.
 
-[Command lines used](https://github.com/mgharribey/LegacyGeneticNe/blob/main/scripts) also include an automatization for several datasets. 
+[Command lines used](https://mgharribey.github.io/LegacyGeneticNe/docs/SNP_Filt_pop_assignation_transfo_VCF_Genind.html) also include an automatization for several datasets. 
 
 
 ### 2. Calculation of genetic EBV (Essential Biodiversity Variables) 
@@ -51,14 +51,14 @@ You may find [scripts reencoding SNP data for ONeSAMP 3.0](https://mgharribey.gi
 
 ## Scripts to plot the results as shown in the publication
 
-Codes to reproduce figures from the article can be found below, using genetic EBV and NeLD estimates from Table S8. 
+Codes to reproduce figures from the article can be found below, using genetic EBV and NeLD estimates from Table S7. 
 
 *in prep.*
 
 
 ## Data statement
 
-All datasets used for this study are published data, you can find datasets references and their original repositories in Table S5. 
+All datasets used for this study are published data, you can find datasets references and their original repositories in Table S4. 
 
 Data have been reformatted and converted into both SNP and SSR specific formats for analyses.
 
