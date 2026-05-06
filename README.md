@@ -46,7 +46,7 @@ The same [pipeline adpated for SNP](https://mgharribey.github.io/LegacyGeneticNe
 
 We also used two other software to compare the estimation of Ne with NeLD: [Estim for SSR](https://doi.org/10.1046/j.1471-8278.2001.00086.x) and [ONeSAMP 3.0 for SNPs](https://doi.org/10.1093/g3journal/jkae153) (not included in the Galaxy-Ecology workflow). 
 
-You may find [scripts reencoding SNP data for ONeSAMP 3.0](https://mgharribey.github.io/LegacyGeneticNe/docs/Ne_Estims_withONeSAMP3.html) useful. 
+You may find [scripts reencoding SNP data for ONeSAMP 3.0](https://mgharribey.github.io/LegacyGeneticNe/docs/NeEstims_withONeSAMP3.html) useful. 
 
 
 ## Scripts to plot the results as shown in the publication
