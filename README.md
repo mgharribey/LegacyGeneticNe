@@ -44,7 +44,7 @@ Estimation of effective population size using NeLD in NeEstimator (Do et al. 201
 
 The same [pipeline adpated for SNP](https://mgharribey.github.io/LegacyGeneticNe/docs/NeEstims_withNeLD_SNP.html) also includes the creation of replicates subsetting the number of loci when their number is sufficient and a correction for pseudoreplication ([Waples et al. 2016](https://doi.org/10.1038/hdy.2016.60)). 
 
-We also used two other software to compare the estimation of Ne with NeLD: [Estim for SSR](https://doi.org/10.1046/j.1471-8278.2001.00086.x.) and [ONeSAMP 3.0 for SNPs](https://doi.org/10.1093/g3journal/jkae153) populations with a small expected Ne (not included in the Galaxy-Ecology workflow). 
+We also used two other software to compare the estimation of Ne with NeLD: [Estim for SSR](https://doi.org/10.1046/j.1471-8278.2001.00086.x) and [ONeSAMP 3.0 for SNPs](https://doi.org/10.1093/g3journal/jkae153) (not included in the Galaxy-Ecology workflow). 
 
 You may find [scripts reencoding SNP data for ONeSAMP 3.0](https://mgharribey.github.io/LegacyGeneticNe/docs/NeEstims_withONeSAMP3.html) useful. 
 

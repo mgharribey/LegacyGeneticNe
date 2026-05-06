@@ -11,7 +11,7 @@
 
 <meta name="author" content="MGH" />
 
-<meta name="date" content="2025-07-24" />
+<meta name="date" content="2026-05-06" />
 
 <title>Estimation of Ne with ONeSAMP 3 - only for SNPs</title>
 
@@ -2759,7 +2759,7 @@ font-size: 0.95em;
 <h1 class="title toc-ignore">Estimation of Ne with ONeSAMP 3 - only for
 SNPs</h1>
 <h4 class="author">MGH</h4>
-<h4 class="date">2025-07-24</h4>
+<h4 class="date">2026-05-06</h4>
 
 </div>
 
@@ -2782,14 +2782,10 @@ mean, median, and 95 credible limits for the posterior distribution of
 the effective population size from OneSamp min max mean median lower95CL
 upper95CL 63.98 243.87 96.61 97.41 74.73 152.36 — 45649.141025304794
 seconds —</p>
-<p>–&gt; I think it’s important to report the time of running, because
-it’s very long</p>
+<p>–&gt; check the running time that is quite extensive</p>
 <div id="set-up" class="section level1" number="1">
 <h1><span class="header-section-number">1</span> Set-up</h1>
-<pre class="r"><code>rm(list=ls())
-setwd(&quot;C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/NeEstimations&quot;)</code></pre>
 <pre class="r"><code>library(dplyr)</code></pre>
-<pre><code>## Warning: le package &#39;dplyr&#39; a été compilé avec la version R 4.3.3</code></pre>
 <pre><code>## 
 ## Attachement du package : &#39;dplyr&#39;</code></pre>
 <pre><code>## Les objets suivants sont masqués depuis &#39;package:stats&#39;:
@@ -2798,17 +2794,8 @@ setwd(&quot;C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_articl
 <pre><code>## Les objets suivants sont masqués depuis &#39;package:base&#39;:
 ## 
 ##     intersect, setdiff, setequal, union</code></pre>
-<pre class="r"><code>library(ggplot2)</code></pre>
-<pre><code>## Warning: le package &#39;ggplot2&#39; a été compilé avec la version R 4.3.3</code></pre>
-<pre class="r"><code>library(tidyverse)</code></pre>
-<pre><code>## Warning: le package &#39;tidyverse&#39; a été compilé avec la version R 4.3.3</code></pre>
-<pre><code>## Warning: le package &#39;tibble&#39; a été compilé avec la version R 4.3.3</code></pre>
-<pre><code>## Warning: le package &#39;tidyr&#39; a été compilé avec la version R 4.3.3</code></pre>
-<pre><code>## Warning: le package &#39;readr&#39; a été compilé avec la version R 4.3.3</code></pre>
-<pre><code>## Warning: le package &#39;purrr&#39; a été compilé avec la version R 4.3.3</code></pre>
-<pre><code>## Warning: le package &#39;stringr&#39; a été compilé avec la version R 4.3.3</code></pre>
-<pre><code>## Warning: le package &#39;forcats&#39; a été compilé avec la version R 4.3.3</code></pre>
-<pre><code>## Warning: le package &#39;lubridate&#39; a été compilé avec la version R 4.3.3</code></pre>
+<pre class="r"><code>library(ggplot2)
+library(tidyverse)</code></pre>
 <pre><code>## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
 ## ✔ forcats   1.0.0     ✔ stringr   1.5.1
 ## ✔ lubridate 1.9.3     ✔ tibble    3.2.1
@@ -2824,16 +2811,16 @@ setwd(&quot;C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_articl
 <h1><span class="header-section-number">2</span> Renencoding genepop
 files for ONeSAMP 3</h1>
 <p>I need reencode the genepop files to be read by ONeSAMP 3 (otherwise
-it does not work). The things to rencode are the following: - have
+it does not work). The things to reencode are the following: - have
 alleles coded in 2 characters instead of 3, - the individuals name need
 to be coded as numbers, from 1, 2, 3 to n…</p>
-<div id="for-subsamp-1000-snps" class="section level2" number="2.1">
-<h2><span class="header-section-number">2.1</span> For subsamp 1000
-snps</h2>
+<p>Two lists of files to run the reencoding</p>
 <pre class="r"><code>list_snps_file &lt;- 
   list.files(&quot;genpop_files/subsamp_1000snps/&quot;, full.names = TRUE)
 nb_snps=1000
-#list_snps_file &lt;- list_snps_file[1:311]</code></pre>
+#list_snps_file &lt;- list_snps_file[1:311]
+
+list_full_snps_file &lt;- list.files(&quot;genpop_files/snps_full/&quot;, full.names = TRUE)</code></pre>
 <pre class="r"><code>for (i in list_snps_file){
 
   #let&#39;s read the file by lines
@@ -2959,154 +2946,6 @@ nb_snps=1000
   rm(alleles,alleles_list,alleles_list_df,geno_df_final,geno_df_recoded,geno_tab, new_col)
 }</code></pre>
 </div>
-<div id="snps-less-than-1000" class="section level2" number="2.2">
-<h2><span class="header-section-number">2.2</span> SNPs less than
-1000</h2>
-<pre class="r"><code>list_full_snps_file &lt;- list.files(&quot;genpop_files/snps_full/&quot;, full.names = TRUE)
-
-list_few_snps_file &lt;- list_full_snps_file[grep(&quot;Ursus_arctos|Alytes_obstetricans&quot;,list_full_snps_file)]
-print(list_few_snps_file)</code></pre>
-<pre><code>## [1] &quot;genpop_files/snps_full/Alytes_obstetricans_Barratt_2024_Bramburg.gen&quot;
-## [2] &quot;genpop_files/snps_full/Alytes_obstetricans_Barratt_2024_Metapop1.gen&quot;
-## [3] &quot;genpop_files/snps_full/Alytes_obstetricans_Barratt_2024_Metapop2.gen&quot;
-## [4] &quot;genpop_files/snps_full/Ursus_arctos_Kopatz_2024_North_Karelian.gen&quot;  
-## [5] &quot;genpop_files/snps_full/Ursus_arctos_Kopatz_2024_South_Karelian.gen&quot;</code></pre>
-<pre class="r"><code>for (i in list_few_snps_file){
-
-  #let&#39;s read the file by lines
-  lines &lt;- readLines(i)
-
-  #find pop indice
-  pop_indices &lt;- grep(&quot;^POP&quot;, lines, ignore.case = TRUE)
-  if(length(pop_indices) != 1){
-    stop(&quot;Not a single pop in this dataset, check please&quot;)
-  }
-
-  #keep the header
-  header &lt;- lines[1:(pop_indices)]
-  #two cases of header according the way of converting the file to genepop 
-  if (length(header) &gt; 3){
-    #case of use PGDSpider
-     nb_snps &lt;- (length(header)-2) #header minus empty first line and last line with &quot;POP&quot;
-  } else{
-    # eg case of use of package graph4lg
-    parts &lt;- trimws(unlist(strsplit(header[2], &quot;,&quot;)))
-    nb_snps &lt;- length(parts)
-  }
-  
-  
-  ########################################################
-  #create a dataframe with genotypes
-  data_lines &lt;- lines[(pop_indices+1):length(lines)]
-
-  geno_tab &lt;- matrix(ncol=(nb_snps+1), nrow = 0)
-
-  for (j in seq_along(data_lines)){
-    current_line &lt;- trimws(data_lines[j])
-    parts &lt;- strsplit(current_line, &quot;,&quot;)[[1]]
-    #ind name
-    ind &lt;- trimws(parts[1])
-    #genotypes line = 1 by locus
-    full_geno &lt;- trimws(parts[2])
-    full_geno &lt;- unlist(strsplit(full_geno, &quot;\\s+&quot;))
-  
-    n_loci &lt;- length(full_geno)
-    if(all(n_loci == nb_snps)){
-    # add this line of genotype in the tab of genetic data we&#39;re building
-      geno_tab &lt;- rbind(geno_tab,c(ind,full_geno))
-    }else{
-      stop(&quot;Not the same nb of loci between indviduals, weird so check please&quot;)
-    }
-  }
-
-  #transform it into a dataframe
-  geno_tab &lt;- as.data.frame(geno_tab)
-  snps_name &lt;- paste0(&quot;loc_&quot;,seq_along(1:nb_snps))
-  colnames(geno_tab) &lt;- c(&quot;ind&quot;, snps_name)
-
-  #Let&#39;s split into 2 columns 
-  geno_df_recoded &lt;- geno_tab %&gt;%
-    mutate(across(-ind,
-          list(all1 = ~ substr(.x, 1, 3),
-              all2 = ~ substr(.x, 4, 6)),
-          .names = &quot;{.col}_{.fn}&quot;)) %&gt;%
-      select(ind, ends_with(&quot;all1&quot;), ends_with(&quot;all2&quot;))
-  ########################################################
-
-  # create a list with the unique alleles of each locus
-  alleles_list &lt;- map(snps_name, function(snp) {
-    allele_columns &lt;- geno_df_recoded %&gt;% select(starts_with(snp))
-    unique(unlist(allele_columns))
-  })
-  names(alleles_list) &lt;- snps_name
-
-  #let&#39;s add the info for recoding
-  alleles_list_df &lt;- map(alleles_list, function(allele_vec) {
-    # keep sequence of alleles
-    alleles_unique &lt;- unique(allele_vec)
-    #remove missing alleles (specific case)
-    non_missing &lt;- alleles_unique[alleles_unique != &quot;000&quot;]
-    #sequence to attribute encoded alleles with 2 caracters
-    codes &lt;- sprintf(&quot;%02d&quot;, seq_along(non_missing))
-    # corresponding table
-    mapping &lt;- setNames(codes, non_missing)
-    #specific case of missing data
-    if (&quot;000&quot; %in% alleles_unique) {
-      mapping[&quot;000&quot;] &lt;- &quot;00&quot;
-    }
-    #a dataframe with 2 columns, original=encoding with 3 caracters/recoded=encoding with 2 caracters
-    data.frame(original = names(mapping), recoded = as.vector(mapping), 
-             stringsAsFactors = FALSE)
-  })
-
-  ########################################################
-  #reencode the alleles in a dataframe
-  geno_df_final &lt;- data.frame(ind = seq_along(1:nrow(geno_tab)), stringsAsFactors = FALSE)
-  for (snp in snps_name){
-    new_col &lt;- geno_df_recoded %&gt;% select(starts_with(paste0(snp,&quot;_&quot;)))
-    alleles &lt;- alleles_list_df[[snp]]
-  
-    new_col &lt;- new_col %&gt;% mutate(across(everything(), 
-                                       ~ recode(., !!! setNames(alleles$recoded, alleles$original))))
-  
-    geno_df_final &lt;- bind_cols(geno_df_final,new_col)
-  }
-
-  ###########################################################################
-  #now let&#39;s return to the matrix format and reput everything in a genepop format
-  genepop_lines &lt;- apply(geno_df_final, 1, function(x) {
-    x &lt;- as.character(x)
-    id &lt;- x[1]
-    alleles &lt;- x[-1]
-    # paste alleles 2 by 2
-    pairs &lt;- paste0(
-      alleles[seq(1, length(alleles), by = 2)],
-      alleles[seq(2, length(alleles), by = 2)])
-    # put the line in the good shape, with info split by spaces (2 spaces after the comma)
-    paste(id, &quot;, &quot;, paste(pairs, collapse = &quot; &quot;))
-  })
-
-  #add the header
-  genepop_lines &lt;- c(header,genepop_lines)
-
-  #save this newly renecoded genepop file
-  name_file &lt;-  sub(&quot;^.*/(.*)\\.[^.]+$&quot;, &quot;\\1&quot;, i)
-  writeLines(genepop_lines, paste0(&quot;with_ONeSAMP/reencoded_genepop_files/fullsnps/&quot;,name_file,&quot;.txt&quot;))
-  
-  ########################################################
-  
-  #check that loop was okay
-  cat(&quot;which pop are we?&quot;,name_file)
-  cat(&quot;dim tab before reencoding&quot;,dim(geno_tab))
-  cat(&quot;dim tab after reencoding&quot;,dim(geno_df_final))
-  cat(&quot;Nb snps in the loop should be&quot;,nb_snps,&quot;, here = &quot;,snp)
-  
-  #cleaning
-  rm(current_line,data_lines,full_geno,genepop_lines,header,ind,lines,n_loci,parts,pop_indices,snp,snps_name,j)
-  rm(alleles,alleles_list,alleles_list_df,geno_df_final,geno_df_recoded,geno_tab, new_col)
-}</code></pre>
-</div>
-</div>
 <div id="run-onesamp-3-on-the-cluster" class="section level1" number="3">
 <h1><span class="header-section-number">3</span> Run ONeSAMP 3 (on the
 cluster)</h1>
@@ -3116,37 +2955,42 @@ script_cluster_ONESAMP_subsamp_1000snps.sh</p>
 folder containing the program, there is a problem with temporary files
 created. So make sure to clone several times the program in different
 folders if you want to run it in parallel on several files.</p>
-<p>Here are the parameters we used: - m 0.000001 - Minimum allele
-frequency, to be considered as zero, as we already filtered our data for
-rare alleles - s 50000 - Number of ONeSAMP trials, as big as possible to
-add the more iteration possible for more robust result with this
-Bayesian framework - lNe 5 -uNe 400 - Range of Ne, wider allowed (look
-in the code for upper range) - lT 0.00005 -uT 0.05 - Range of Theta
-(Theta=Ne*mu), wide also and realistic for SNPs markers</p>
+<p>Here are the parameters we used:</p>
+<ul>
+<li><p>m 0.000001 - Minimum allele frequency, to be considered as zero,
+as we already filtered our data for rare alleles</p></li>
+<li><p>s 50000 - Number of ONeSAMP trials, as big as possible to add the
+more iteration possible for more robust result with this Bayesian
+framework</p></li>
+<li><p>lNe 5 -uNe 400 - Range of Ne, wider allowed (look in the code for
+upper range)</p></li>
+<li><p>lT 0.00005 -uT 0.05 - Range of Theta (Theta=Ne*mu), wide also and
+realistic for SNPs markers</p></li>
+</ul>
 <p>We also tried to run ONeSAMP 3, on datasets with expected Ne bigger
 than 400 (above 1000) and we got unrealistic outlier values (that could
 be related to -Infinite or Infinite). Thus, I only used the program on
-the following datasets: - Alytes obstetricans - Barbastella barbastellus
-(although one of the 2 population as an NeLD ~ 1000 with ldne) -
-Colonies in Iberia and Sussex - Cypripedium calceolus - Estonia
-populations - Passer domesticus - metapopulation inslands in Norway -
-Ursus arctos - Fennoscandinavian population</p>
+the following datasets:</p>
+<ul>
+<li><p>Alytes obstetricans</p></li>
+<li><p>Barbastella barbastellus (although one of the 2 population as an
+NeLD ~ 1000 with ldne) - Colonies in Iberia and Sussex</p></li>
+<li><p>Cypripedium calceolus - Estonia populations</p></li>
+<li><p>Passer domesticus - metapopulation inslands in Norway</p></li>
+<li><p>Ursus arctos - Fennoscandinavian population</p></li>
+</ul>
 </div>
 <div id="identify-the-files-that-did-not-run-correctly" class="section level1" number="4">
 <h1><span class="header-section-number">4</span> Identify the files that
 did not run correctly</h1>
-<p>I know that there were some problems with the running of some
-files</p>
-<p>see for example</p>
-<pre class="r"><code>readLines(&quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Barbastella_barbastellus_Razgour_2024_Iberian_col_1000snps_subset_5_output.txt&quot;)</code></pre>
-<pre><code>## [1] &quot;WARNING:main: No filename provided.  Using ridge.joblib&quot;                                                                        
-## [2] &quot;Below are the mean, median, and 95 credible limits for the posterior distribution of the effective population size from OneSamp&quot;
-## [3] &quot;min        max        mean        median      lower95CL   upper95CL&quot;                                                            
-## [4] &quot;71.41      375.10      113.23      115.18      87.10      194.83&quot;                                                               
-## [5] &quot;--- 45530.33658504486 seconds ---&quot;</code></pre>
-<p>So to list them, we just have to count the number of lines (if longer
-than 6 then there were a problem)</p>
-<pre class="r"><code>results_ONeSAMP &lt;- list.files(&quot;with_ONeSAMP/results_subsamp_1000snps_07_25/&quot;, full.names = TRUE)
+<p>When begining to run the software, I had some problems with the
+running of some files. This was due to dependencies/temporary files
+created in background when using a single folder containing the program
+and several files.</p>
+<p>So to list them (make sure you have dowloaded the results files from
+your online cluster), we just have to count the number of lines (if
+longer than 6 then there were a problem)</p>
+<pre class="r"><code>results_ONeSAMP &lt;- list.files(&quot;with_ONeSAMP/results_subsamp_1000snps&quot;, full.names = TRUE)
 
 problem_running_files &lt;- c()
 
@@ -3158,50 +3002,8 @@ for (i in results_ONeSAMP){
   }
 }
 
-problem_running_files</code></pre>
-<pre><code>##  [1] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Aldra_1000snps_subset_1_output.txt&quot;      
-##  [2] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Aldra_1000snps_subset_2_output.txt&quot;      
-##  [3] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Aldra_1000snps_subset_3_output.txt&quot;      
-##  [4] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Aldra_1000snps_subset_4_output.txt&quot;      
-##  [5] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Aldra_1000snps_subset_5_output.txt&quot;      
-##  [6] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Gjaroy_1000snps_subset_3_output.txt&quot;     
-##  [7] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Gjaroy_1000snps_subset_4_output.txt&quot;     
-##  [8] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Gjaroy_1000snps_subset_5_output.txt&quot;     
-##  [9] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Hestmannoy_1000snps_subset_1_output.txt&quot; 
-## [10] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Hestmannoy_1000snps_subset_2_output.txt&quot; 
-## [11] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Hestmannoy_1000snps_subset_3_output.txt&quot; 
-## [12] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Hestmannoy_1000snps_subset_4_output.txt&quot; 
-## [13] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Hestmannoy_1000snps_subset_5_output.txt&quot; 
-## [14] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_IndreKvaroy_1000snps_subset_1_output.txt&quot;
-## [15] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_IndreKvaroy_1000snps_subset_2_output.txt&quot;
-## [16] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_IndreKvaroy_1000snps_subset_3_output.txt&quot;
-## [17] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_IndreKvaroy_1000snps_subset_4_output.txt&quot;
-## [18] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_IndreKvaroy_1000snps_subset_5_output.txt&quot;
-## [19] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Leka_1000snps_subset_1_output.txt&quot;       
-## [20] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Leka_1000snps_subset_2_output.txt&quot;       
-## [21] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Leka_1000snps_subset_3_output.txt&quot;       
-## [22] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Leka_1000snps_subset_4_output.txt&quot;       
-## [23] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Leka_1000snps_subset_5_output.txt&quot;       
-## [24] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Myken_1000snps_subset_1_output.txt&quot;      
-## [25] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Myken_1000snps_subset_2_output.txt&quot;      
-## [26] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Myken_1000snps_subset_4_output.txt&quot;      
-## [27] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Myken_1000snps_subset_5_output.txt&quot;      
-## [28] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Nesoy_1000snps_subset_1_output.txt&quot;      
-## [29] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Nesoy_1000snps_subset_2_output.txt&quot;      
-## [30] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Nesoy_1000snps_subset_3_output.txt&quot;      
-## [31] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Nesoy_1000snps_subset_4_output.txt&quot;      
-## [32] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Nesoy_1000snps_subset_5_output.txt&quot;      
-## [33] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Vega_1000snps_subset_1_output.txt&quot;       
-## [34] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Vega_1000snps_subset_2_output.txt&quot;       
-## [35] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Vega_1000snps_subset_3_output.txt&quot;       
-## [36] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Vega_1000snps_subset_4_output.txt&quot;       
-## [37] &quot;with_ONeSAMP/results_subsamp_1000snps_07_25/Passer_domesticus_Hagen_2020_Vega_1000snps_subset_5_output.txt&quot;</code></pre>
-<pre class="r"><code>length(problem_running_files)</code></pre>
-<pre><code>## [1] 37</code></pre>
-<p>ok so 41/62 files with a problem… almost all files of Passer
-domesticus, most of Barbastella also… This was due to the problem of
-dependencies/temporary files created in background when using a single
-folder containing the program and several files.</p>
+problem_running_files
+length(problem_running_files)</code></pre>
 </div>
 <div id="gather-results-in-a-tab" class="section level1" number="5">
 <h1><span class="header-section-number">5</span> Gather results in a
@@ -3255,25 +3057,14 @@ rm(end_index,start_index,estimated_Ne,text_file,dataset,pop,subset)
 Ne_ONeSAMP &lt;- as.data.frame(Ne_ONeSAMP)
 Ne_ONeSAMP$Marker_type &lt;- &quot;snps&quot;
 Ne_ONeSAMP &lt;- as.data.frame(Ne_ONeSAMP) %&gt;%
-  mutate(across(c(&quot;min&quot;,&quot;max&quot;,&quot;mean&quot;,&quot;median&quot;,&quot;lower95CL&quot;,&quot;upper95CL&quot;,&quot;computation_time&quot;), as.numeric))</code></pre>
-<pre><code>## Warning: There were 7 warnings in `mutate()`.
-## The first warning was:
-## ℹ In argument: `across(...)`.
-## Caused by warning:
-## ! NAs introduits lors de la conversion automatique
-## ℹ Run `dplyr::last_dplyr_warnings()` to see the 6 remaining warnings.</code></pre>
-<pre class="r"><code># check the number of problems while running
+  mutate(across(c(&quot;min&quot;,&quot;max&quot;,&quot;mean&quot;,&quot;median&quot;,&quot;lower95CL&quot;,&quot;upper95CL&quot;,&quot;computation_time&quot;), as.numeric))
+
+# check the number of problems while running
 cat(&quot;Nb of files that did not run correctly:&quot;,sum(Ne_ONeSAMP$Pb == &quot;Pb_running&quot;))</code></pre>
-<pre><code>## Nb of files that did not run correctly: 37</code></pre>
-<p>–&gt; hopefully this will be resolved soon, to be seen</p>
 <p>Save this table</p>
-<pre class="r"><code>head(Ne_ONeSAMP)</code></pre>
-<div data-pagedtable="false">
-<script data-pagedtable-source type="application/json">
-{"columns":[{"label":[""],"name":["_rn_"],"type":[""],"align":["left"]},{"label":["Dataset"],"name":[1],"type":["chr"],"align":["left"]},{"label":["Pop"],"name":[2],"type":["chr"],"align":["left"]},{"label":["Subset"],"name":[3],"type":["chr"],"align":["left"]},{"label":["Pb"],"name":[4],"type":["chr"],"align":["left"]},{"label":["min"],"name":[5],"type":["dbl"],"align":["right"]},{"label":["max"],"name":[6],"type":["dbl"],"align":["right"]},{"label":["mean"],"name":[7],"type":["dbl"],"align":["right"]},{"label":["median"],"name":[8],"type":["dbl"],"align":["right"]},{"label":["lower95CL"],"name":[9],"type":["dbl"],"align":["right"]},{"label":["upper95CL"],"name":[10],"type":["dbl"],"align":["right"]},{"label":["computation_time"],"name":[11],"type":["dbl"],"align":["right"]},{"label":["Marker_type"],"name":[12],"type":["chr"],"align":["left"]}],"data":[{"1":"Barbastella_barbastellus_Razgour_2024","2":"Iberian_col","3":"1","4":"__NA__","5":"63.98","6":"243.87","7":"96.61","8":"97.41","9":"74.73","10":"152.36","11":"45649.14","12":"snps","_rn_":"1"},{"1":"Barbastella_barbastellus_Razgour_2024","2":"Iberian_col","3":"2","4":"__NA__","5":"51.42","6":"257.81","7":"79.40","8":"79.85","9":"63.38","10":"117.03","11":"45522.94","12":"snps","_rn_":"2"},{"1":"Barbastella_barbastellus_Razgour_2024","2":"Iberian_col","3":"3","4":"__NA__","5":"39.00","6":"111.19","7":"57.66","8":"58.21","9":"46.39","10":"77.40","11":"44308.27","12":"snps","_rn_":"3"},{"1":"Barbastella_barbastellus_Razgour_2024","2":"Iberian_col","3":"4","4":"__NA__","5":"42.67","6":"98.18","7":"57.97","8":"58.43","9":"47.55","10":"76.38","11":"45087.52","12":"snps","_rn_":"4"},{"1":"Barbastella_barbastellus_Razgour_2024","2":"Iberian_col","3":"5","4":"__NA__","5":"71.41","6":"375.10","7":"113.23","8":"115.18","9":"87.10","10":"194.83","11":"45530.34","12":"snps","_rn_":"5"},{"1":"Barbastella_barbastellus_Razgour_2024","2":"Sussex_col","3":"1","4":"__NA__","5":"30.42","6":"93.17","7":"44.67","8":"44.92","9":"36.45","10":"59.75","11":"44478.26","12":"snps","_rn_":"6"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
-  </script>
-</div>
-<pre class="r"><code>write.csv(Ne_ONeSAMP, file=&quot;with_ONeSAMP/summary_results_Ne_withONeSAMP3.csv&quot;)</code></pre>
+<pre class="r"><code>head(Ne_ONeSAMP)
+
+write.csv(Ne_ONeSAMP, file=&quot;with_ONeSAMP/summary_results_Ne_withONeSAMP3.csv&quot;)</code></pre>
 </div>
 
 

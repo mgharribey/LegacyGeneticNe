@@ -34,16 +34,16 @@ min        max        mean        median      lower95CL   upper95CL
 63.98      243.87      96.61      97.41      74.73      152.36
 --- 45649.141025304794 seconds ---
 
---> I think it's important to report the time of running, because it's very long
+--> check the running time that is quite extensive
 
 # Set-up
 
-```{r}
+```{r, include=FALSE}
 rm(list=ls())
 setwd("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/NeEstimations")
 ```
 
-```{r}
+```{r, warning=FALSE}
 library(dplyr)
 library(ggplot2)
 library(tidyverse)
@@ -52,17 +52,19 @@ library(purrr)
 
 # Renencoding genepop files for ONeSAMP 3
 
-I need reencode the genepop files to be read by ONeSAMP 3 (otherwise it does not work). The things to rencode are the following:
+I need reencode the genepop files to be read by ONeSAMP 3 (otherwise it does not work). The things to reencode are the following:
 - have alleles coded in 2 characters instead of 3,
 - the individuals name need to be coded as numbers, from 1, 2, 3 to n... 
 
-## For subsamp 1000 snps
 
-```{r}
+Two lists of files to run the reencoding
+```{r, eval=FALSE}
 list_snps_file <- 
   list.files("genpop_files/subsamp_1000snps/", full.names = TRUE)
 nb_snps=1000
 #list_snps_file <- list_snps_file[1:311]
+
+list_full_snps_file <- list.files("genpop_files/snps_full/", full.names = TRUE)
 ```
 
 
@@ -194,154 +196,6 @@ for (i in list_snps_file){
 ```
 
 
-## SNPs less than 1000
-
-```{r}
-list_full_snps_file <- list.files("genpop_files/snps_full/", full.names = TRUE)
-
-list_few_snps_file <- list_full_snps_file[grep("Ursus_arctos|Alytes_obstetricans",list_full_snps_file)]
-print(list_few_snps_file)
-```
-
-
-```{r, eval=FALSE}
-for (i in list_few_snps_file){
-
-  #let's read the file by lines
-  lines <- readLines(i)
-
-  #find pop indice
-  pop_indices <- grep("^POP", lines, ignore.case = TRUE)
-  if(length(pop_indices) != 1){
-    stop("Not a single pop in this dataset, check please")
-  }
-
-  #keep the header
-  header <- lines[1:(pop_indices)]
-  #two cases of header according the way of converting the file to genepop 
-  if (length(header) > 3){
-    #case of use PGDSpider
-     nb_snps <- (length(header)-2) #header minus empty first line and last line with "POP"
-  } else{
-    # eg case of use of package graph4lg
-    parts <- trimws(unlist(strsplit(header[2], ",")))
-    nb_snps <- length(parts)
-  }
-  
-  
-  ########################################################
-  #create a dataframe with genotypes
-  data_lines <- lines[(pop_indices+1):length(lines)]
-
-  geno_tab <- matrix(ncol=(nb_snps+1), nrow = 0)
-
-  for (j in seq_along(data_lines)){
-    current_line <- trimws(data_lines[j])
-    parts <- strsplit(current_line, ",")[[1]]
-    #ind name
-    ind <- trimws(parts[1])
-    #genotypes line = 1 by locus
-    full_geno <- trimws(parts[2])
-    full_geno <- unlist(strsplit(full_geno, "\\s+"))
-  
-    n_loci <- length(full_geno)
-    if(all(n_loci == nb_snps)){
-    # add this line of genotype in the tab of genetic data we're building
-      geno_tab <- rbind(geno_tab,c(ind,full_geno))
-    }else{
-      stop("Not the same nb of loci between indviduals, weird so check please")
-    }
-  }
-
-  #transform it into a dataframe
-  geno_tab <- as.data.frame(geno_tab)
-  snps_name <- paste0("loc_",seq_along(1:nb_snps))
-  colnames(geno_tab) <- c("ind", snps_name)
-
-  #Let's split into 2 columns 
-  geno_df_recoded <- geno_tab %>%
-    mutate(across(-ind,
-          list(all1 = ~ substr(.x, 1, 3),
-              all2 = ~ substr(.x, 4, 6)),
-          .names = "{.col}_{.fn}")) %>%
-      select(ind, ends_with("all1"), ends_with("all2"))
-  ########################################################
-
-  # create a list with the unique alleles of each locus
-  alleles_list <- map(snps_name, function(snp) {
-    allele_columns <- geno_df_recoded %>% select(starts_with(snp))
-    unique(unlist(allele_columns))
-  })
-  names(alleles_list) <- snps_name
-
-  #let's add the info for recoding
-  alleles_list_df <- map(alleles_list, function(allele_vec) {
-    # keep sequence of alleles
-    alleles_unique <- unique(allele_vec)
-    #remove missing alleles (specific case)
-    non_missing <- alleles_unique[alleles_unique != "000"]
-    #sequence to attribute encoded alleles with 2 caracters
-    codes <- sprintf("%02d", seq_along(non_missing))
-    # corresponding table
-    mapping <- setNames(codes, non_missing)
-    #specific case of missing data
-    if ("000" %in% alleles_unique) {
-      mapping["000"] <- "00"
-    }
-    #a dataframe with 2 columns, original=encoding with 3 caracters/recoded=encoding with 2 caracters
-    data.frame(original = names(mapping), recoded = as.vector(mapping), 
-             stringsAsFactors = FALSE)
-  })
-
-  ########################################################
-  #reencode the alleles in a dataframe
-  geno_df_final <- data.frame(ind = seq_along(1:nrow(geno_tab)), stringsAsFactors = FALSE)
-  for (snp in snps_name){
-    new_col <- geno_df_recoded %>% select(starts_with(paste0(snp,"_")))
-    alleles <- alleles_list_df[[snp]]
-  
-    new_col <- new_col %>% mutate(across(everything(), 
-                                       ~ recode(., !!! setNames(alleles$recoded, alleles$original))))
-  
-    geno_df_final <- bind_cols(geno_df_final,new_col)
-  }
-
-  ###########################################################################
-  #now let's return to the matrix format and reput everything in a genepop format
-  genepop_lines <- apply(geno_df_final, 1, function(x) {
-    x <- as.character(x)
-    id <- x[1]
-    alleles <- x[-1]
-    # paste alleles 2 by 2
-    pairs <- paste0(
-      alleles[seq(1, length(alleles), by = 2)],
-      alleles[seq(2, length(alleles), by = 2)])
-    # put the line in the good shape, with info split by spaces (2 spaces after the comma)
-    paste(id, ", ", paste(pairs, collapse = " "))
-  })
-
-  #add the header
-  genepop_lines <- c(header,genepop_lines)
-
-  #save this newly renecoded genepop file
-  name_file <-  sub("^.*/(.*)\\.[^.]+$", "\\1", i)
-  writeLines(genepop_lines, paste0("with_ONeSAMP/reencoded_genepop_files/fullsnps/",name_file,".txt"))
-  
-  ########################################################
-  
-  #check that loop was okay
-  cat("which pop are we?",name_file)
-  cat("dim tab before reencoding",dim(geno_tab))
-  cat("dim tab after reencoding",dim(geno_df_final))
-  cat("Nb snps in the loop should be",nb_snps,", here = ",snp)
-  
-  #cleaning
-  rm(current_line,data_lines,full_geno,genepop_lines,header,ind,lines,n_loci,parts,pop_indices,snp,snps_name,j)
-  rm(alleles,alleles_list,alleles_list_df,geno_df_final,geno_df_recoded,geno_tab, new_col)
-}
-```
-
-
 # Run ONeSAMP 3 (on the cluster)
 
 For more details, you can see on script_cluster_ONESAMP_subsamp_1000snps.sh
@@ -349,34 +203,36 @@ For more details, you can see on script_cluster_ONESAMP_subsamp_1000snps.sh
 NB: when run on several dataset at the same time within a single folder containing the program, there is a problem with temporary files created. So make sure to clone several times the program in different folders if you want to run it in parallel on several files. 
 
 Here are the parameters we used:
+
 - m 0.000001 - Minimum allele frequency, to be considered as zero, as we already filtered our data for rare alleles
+
 - s 50000 - Number of ONeSAMP trials, as big as possible to add the more iteration possible for more robust result with this Bayesian framework
+
 - lNe 5 -uNe 400 - Range of Ne, wider allowed (look in the code for upper range)
+
 - lT 0.00005 -uT 0.05 - Range of Theta (Theta=Ne*mu), wide also and realistic for SNPs markers
 
 We also tried to run ONeSAMP 3, on datasets with expected Ne bigger than 400 (above 1000) and we got unrealistic outlier values (that could be related to -Infinite or Infinite). Thus, I only used the program on the following datasets:
+
 - Alytes obstetricans 
+
 - Barbastella barbastellus (although one of the 2 population as an NeLD ~ 1000 with ldne) - Colonies in Iberia and Sussex 
+
 - Cypripedium calceolus - Estonia populations
+
 - Passer domesticus - metapopulation inslands in Norway
+
 - Ursus arctos - Fennoscandinavian population
 
 
 # Identify the files that did not run correctly
 
-I know that there were some problems with the running of some files 
+When begining to run the software, I had some problems with the running of some files. This was due to dependencies/temporary files created in background when using a single folder containing the program and several files.
 
-see for example
+So to list them (make sure you have dowloaded the results files from your online cluster), we just have to count the number of lines (if longer than 6 then there were a problem)
 
-```{r}
-readLines("with_ONeSAMP/results_subsamp_1000snps_07_25/Barbastella_barbastellus_Razgour_2024_Iberian_col_1000snps_subset_5_output.txt")
-```
-
-So to list them, we just have to count the number of lines (if longer than 6 then there were a problem)
-
-```{r}
-results_ONeSAMP <- list.files("with_ONeSAMP/results_subsamp_1000snps_07_25/", full.names = TRUE)
-results_ONeSAMP <- results_ONeSAMP[results_ONeSAMP != "with_ONeSAMP/results_subsamp_1000snps_07_25/results_28_07"]
+```{r, eval=FALSE}
+results_ONeSAMP <- list.files("with_ONeSAMP/results_subsamp_1000snps", full.names = TRUE)
 
 problem_running_files <- c()
 
@@ -392,12 +248,10 @@ problem_running_files
 length(problem_running_files)
 ```
 
-ok so 41/62 files with a problem... almost all files of Passer domesticus, most of Barbastella also... This was due to the problem of dependencies/temporary files created in background when using a single folder containing the program and several files.
-
 
 # Gather results in a tab
 
-```{r}
+```{r, eval=FALSE}
 #function to extract values in R
 extract_values <- function(line) {
   values <- unlist(strsplit(line, "\\s+"))
@@ -406,7 +260,7 @@ extract_values <- function(line) {
 ```
 
 
-```{r}
+```{r, eval=FALSE}
 
 #Table where every info is going to be kept
 Ne_ONeSAMP <- matrix(NA, ncol=11, nrow=0)
@@ -458,10 +312,9 @@ Ne_ONeSAMP <- as.data.frame(Ne_ONeSAMP) %>%
 cat("Nb of files that did not run correctly:",sum(Ne_ONeSAMP$Pb == "Pb_running"))
 ```
 
---> Problem of running have been solved so everyhting was run correctly
 
 Save this table
-```{r}
+```{r, eval=FALSE}
 head(Ne_ONeSAMP)
 
 write.csv(Ne_ONeSAMP, file="with_ONeSAMP/summary_results_Ne_withONeSAMP3.csv")
