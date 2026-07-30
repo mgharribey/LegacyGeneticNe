@@ -1,0 +1,569 @@
+---
+title: "Main figures for the analyses of results"
+author: "MGH"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+      position: left
+    toc_depth: 4
+    number_sections: true
+    df_print: paged
+---
+
+This file contains code to generate the main figures from the paper: "Mapping effective population size across a three-dimensional life-history framework of species and populations to support broad-scale Ne500 indicator implementation" by Harribey et al. 202X
+
+To rerun this code, you will need the two files available in the folder /scripts/Figures_analyses_of_results:  
+- "summary_by_pop_tableS7.csv" This file corresponds to the Supplementary table S7 with modified column names, readable in R.   
+- "complementary_info_on_legacy_species.csv"  
+
+
+# Set-up
+
+Package loading
+
+```{r, message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyverse)
+library(purrr)
+
+#for graphical purpose
+library(ggplot2)
+library(ggh4x)
+library(ggsignif)
+library(ggrepel)
+library(vioplot)
+library(patchwork)
+library(cowplot)
+library(plotly)
+```
+
+Get the dataset in your R space
+```{r}
+#you might need to run: setwd("your_own_folders_path")
+#Load the files in your R space
+results_by_pop <- read.csv("summary_by_pop_tableS7.csv", sep=";")
+
+#add a column that will be needed for the analyses
+results_by_pop <- results_by_pop %>% mutate(Dataset_Markertype=paste0(Dataset,"_",Marker_type))
+
+complementary_info_species <- read.csv("complementary_info_on_legacy_species.csv", sep=";")
+
+#combine them into one single table
+FULL_TAB <- results_by_pop %>% left_join(complementary_info_species, by="Dataset_Markertype")
+```
+
+Manual color/shape scales:
+
+```{r}
+#For each dataset
+colors_DatasetMarker <- c(
+  #HighRS from slow to fast
+  "Symphonia_globulifera_Schmitt2021_Gargiulo2024_SNP"="orangered",
+  "Cypripedium_calceolus_Gargiulo_2023_SSR"="indianred",
+  "Cypripedium_calceolus_Gargiulo_2023_SNP"="brown",
+  "Mya_arenaria_DeNoia_2020_SSR"="darkorange",
+  
+  #IntermRS from slow to fast
+  "Sardina_pilchardus_Antoniou_2023_SNP"="royalblue",
+  "Pinus_pinaster_Milesi_2024_SNP"="cyan2", #"darkturquoise" 
+  "Fagus_sylvatica_Milesi_2024_SNP"="steelblue1",
+   "Canis_lupus_Silva_2018_K11_SSR"="darkblue", #"navyblue", 
+  "Canis_lupus_Szewczyk_2019_SSR" ="mediumblue", #"darkslateblue","darkblue"
+  
+  "Rana_arvalis_Cox_2024_SSR"="darkolivegreen2",
+  "Coenagrion_mercuriale_Leveque_2024_pop_2021_SSR"="limegreen",
+  "Coenagrion_mercuriale_Leveque_2024_pop_2022_SSR"="limegreen",
+   "Coenagrion_mercuriale_Leveque_2024_pop_2021_SNP"="chartreuse", 
+ "Coenagrion_mercuriale_Leveque_2024_pop_2022_SNP"="chartreuse",
+  "Alytes_obstetricans_Barratt_2024_SSR"="darkolivegreen4",
+  "Alytes_obstetricans_Barratt_2024_SNP"="darkolivegreen3",
+ "Gasterosteus_aculeatus_Raeymaekers_2008_SSR"="springgreen4",  
+ 
+  #LowRS from slow to fast
+  "Ursus_arctos_Kopatz_2024_SNP"="magenta4",
+  "Ursus_arctos_Kopatz_2021_SSR"="purple2",
+ "Raja_clavata_Marandel_2020_SNP"="purple4",
+ "Pinus_sylvestris_Milesi_2024_SNP"="darkorchid3", 
+  "Antirrhinum_charidemi_HeuertzForrest_2024_SSR"="orchid",
+ 
+  "Passer_domesticus_Hagen_2020_SNP"="violetred",
+  "Passer_domesticus_Baalsrud_2013_pop_1994_SSR"="hotpink",
+ "Passer_domesticus_Baalsrud_2013_pop_2000_SSR"="hotpink",
+ "Passer_domesticus_Baalsrud_2013_pop_2006_SSR"="hotpink", 
+ "Graellsia_isabellae_GonzalesCastellano_2023_SSR"="magenta",
+ "Barbastella_barbastellus_Razgour_2024_SNP"="salmon2" 
+)
+
+# For species
+colors_Species_as_other_Neresults <- c(
+  "Passer domesticus"="hotpink",
+  "Fagus sylvatica"="steelblue1",
+  "Pinus pinaster"="cyan2",
+  "Pinus sylvestris"="darkorchid3",
+  "Cypripedium calceolus"="indianred",   
+ "Symphonia globulifera"="orangered",
+ "Canis lupus"="darkblue",
+ "Rana arvalis"="darkolivegreen3",
+ "Ursus arctos"="purple2",
+ "Barbastella barbastellus"="salmon2",
+ "Sardina pilchardus"="royalblue",
+ "Antirrhinum charidemi"="orchid",
+ "Raja clavata"="purple4",
+ "Alytes obstetricans"="darkolivegreen4",
+ "Coenagrion mercuriale"="limegreen",
+ "Graellsia isabellae"="magenta",
+ "Mya arenaria"="darkorange",
+ "Gasterosteus aculeatus"="springgreen4"
+)
+
+# For biogeographic categories
+color_biogeo_pos <- c("core"="#865640FF",
+                              "subedge"="#BD582CFF",
+                              "edge"="#E48312FF",
+                              "island"="#9B8357FF",
+                              "isle"="#C2BC80FF",
+                              "endemic"="#94A088FF")
+
+#Points shape
+#Type of marker
+shape_Markertype <- c("SSR"=17, "SNP"=15)
+
+#Organism type
+shape_OrgType <- c(
+  #for points shape according organism type
+  "Aves" = 18, 
+  "Herbaceous perennial" = 16, 
+  "Tree" = 17, 
+  "Actinopterygii" = 23, 
+  "Elasmobranchii" = 12,
+  "Amphibia" = 8, 
+  "Bivalvia" = 21, 
+  "Insecta" = 25, 
+  "Mammalia" = 13)
+```
+
+
+# Main figures
+
+## Figure 2 - Assignment of legacy species to the LHT variation plane categories
+
+In the case we didn't find a related species for our legacy species in Capdevila PCA, we add the coordinate by hand, as an educated guess, in the center of a given square. To make them easier to read, we have slightly spaced out these points. 
+
+
+```{r plan LHT with spread educ guess pos wider, fig.height=5, fig.width=10.5}
+#some set-up for the graphics
+breaks <- seq(-1, 1, length.out = 4) #to split our plan in 9 subsquares
+
+FULL_TAB %>% distinct(Species, .keep_all = TRUE) %>% 
+  ggplot(aes(x=PC1_educ_guess_spread, y=PC2_educ_guess_spread, label=Species, color=Species, shape=OrganismType))+
+  geom_point(size=3.5, stroke=1) + 
+  geom_text_repel(aes(label = Species), show.legend = FALSE, size = 4,
+          max.overlaps = 20,force = 2,box.padding = 0.35,point.padding = 0.45,#point.padding = unit(10, "mm"),
+          min.segment.length = 0.1,
+          fontface = "italic")+
+    theme_bw(base_size = 16)+
+  scale_shape_manual(values=shape_OrgType, na.value = 18)+
+  scale_color_manual(values=colors_Species_as_other_Neresults, na.value = "grey")+
+  scale_x_continuous(limits = c(-1, 1), breaks = breaks, labels=round(breaks, 2)) +
+  scale_y_continuous(limits = c(-1, 1.1), breaks = breaks, labels=round(breaks, 2)) +
+  geom_vline(xintercept = breaks, color = "black", linetype = "dashed") +
+  geom_hline(yintercept = breaks, color = "black", linetype = "dashed")+
+  labs(x = NULL, y = NULL)+
+  guides(color = guide_legend(order = 2, title = "Species",
+                         override.aes = list(size = 3),
+                          ncol = 1,
+                          byrow = TRUE),
+        shape = guide_legend(order = 1, title = "Life-form",
+                         override.aes = list(size = 5),
+                      ncol = 1))+
+  theme(legend.box = "horizontal")
+```
+
+## Figure 3 - NeLD estimates of populations with their CI
+
+(CI: Confidence Interval)
+
+```{r Ne JK CI LHT by catego with legend, fig.height=15, fig.width=15}
+# Categories of the LHT var plan to include in the graph (here the one with species)
+deg_levels <- c("SlowFS/HighRS",#"SlowFS/IntermRS",#"SlowFS/LowRS", 
+                "IntermFS/HighRS",#"FastFS/HighRS",
+                "IntermFS/IntermRS","FastFS/IntermRS",
+                "IntermFS/LowRS","FastFS/LowRS")
+
+# 1. Create all the graphics of the subsquares without their legend
+create_subplot <- function(deg_level) {
+  
+  data_subset <- FULL_TAB %>%
+    filter(Catego_LHT_plan == deg_level) %>%
+    arrange(Dataset, Marker_type, NeLD) %>%
+    mutate(line_unique_id = paste0(Dataset,Marker_type,Population_name),
+           line_unique_id = factor(line_unique_id, levels = unique(line_unique_id)))
+   
+  ggplot(data_subset, aes(x = log(NeLD), y = line_unique_id, 
+                         color = Dataset_Markertype, shape = Marker_type)) +
+    geom_point(size = 3) +
+    geom_errorbar(aes(xmin = log(JK_CI_down), xmax = log(JK_CI_up)), 
+                  width = 0.2, position = position_dodge(0.9)) +
+    
+    labs(x = ifelse(deg_level == last(deg_levels), 
+                   "log(NeLD)", ""),
+         y = "", tag = deg_level) +
+      
+    scale_x_continuous(
+        limits = c(0.2, 14),
+        breaks = c(log(50), log(500), log(5000), log(999999)),
+        labels = c("Ne=50", "Ne=500", "Ne=5000", "Ne=Inf"),
+        minor_breaks = NULL) +
+      
+    scale_color_manual(values = colors_DatasetMarker) +
+    scale_shape_manual(values = shape_Markertype) +
+    
+    theme_minimal() +
+    theme(
+      panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+      axis.text.x = if (deg_level == last(deg_levels)) 
+                      element_text(angle = 45, hjust = 1, size = 15) 
+                    else element_blank(),
+      axis.title.x = if (deg_level == last(deg_levels)) 
+                       element_text(size = 15) 
+                     else element_blank(),
+      panel.grid.major.x = element_line(color = "grey50"),
+      axis.text.y = element_blank(),
+      legend.position = "none"  # NO LEGEND
+    )+
+    theme(plot.tag = element_text(size = 15, angle = 270, vjust = 1.5))
+}
+
+# 2. Create a graph that contains the whole legend 
+# (avoid problem while we are subsetting the dataset)
+create_manual_legend <- function() {
+  # Full table with all the data
+  legend_data <- FULL_TAB %>%
+    mutate(Catego_LHT_plan = factor(Catego_LHT_plan, levels = deg_levels)) %>%
+    arrange(Catego_LHT_plan, desc(Dataset)) %>%
+    select(Dataset_Markertype, Marker_type) %>%
+    distinct() %>%
+    mutate(
+    Dataset_Markertype = factor(Dataset_Markertype, levels = unique(Dataset_Markertype)),
+    Marker_type = factor(Marker_type, levels = unique(Marker_type))
+  )
+  
+  legend_plot <- ggplot(legend_data, aes(color = Dataset_Markertype, shape = Marker_type)) +
+    geom_point(aes(x = 1, y = 1), size = 4, alpha = 0) +  # No points
+    
+    #Shape the legend beautifully by hand
+    scale_color_manual(
+      values = colors_DatasetMarker,
+      labels = ~gsub("_SSR|_SNP", "", .x),
+      name = "Dataset"
+    ) +
+    scale_shape_manual(
+      values = shape_Markertype,
+      name = "Marker type"
+    ) +
+    
+    guides(
+      color = guide_legend(
+        order = 2, 
+        title = "Dataset",
+        override.aes = list(size = 4, alpha = 1),
+        ncol = 1
+      ),
+      shape = guide_legend(
+        order = 1, 
+        title = "Marker type",
+        override.aes = list(size = 4, alpha = 1),
+        ncol = 1
+      )
+    ) +
+    
+    theme_void() +
+    theme_minimal()+
+    theme(
+      legend.position = "right",
+      legend.box = "vertical",
+      legend.title = element_text(size = 17, face = "bold"),
+      legend.text = element_text(size = 15)
+    )
+  
+  return(legend_plot)
+}
+
+# 3. Create the graphics for each category and the unique legend
+plots2 <- map(deg_levels, create_subplot)
+
+## legend
+legend_plot <- create_manual_legend()
+legend_only <- get_legend(legend_plot)
+
+# 4. Combine the graphics according the LHTs plan
+# heights calculation
+# heights <- FULL_TAB %>%
+#   group_by(Catego_LHT_plan) %>%
+#   summarise(n = n_distinct(Dataset_Markertype), .groups = 'drop') %>%
+#   arrange(match(Catego_LHT_plan, deg_levels)) %>%
+#   pull(n)
+heights <- c(1.2,1,6,7,4,5) #readapted based on results obtained just above
+
+plots_combined <- wrap_plots(plots2, ncol = 1, heights = heights) &
+  theme(
+    plot.margin = margin(t = 0.5, r = 5, b = 0.5, l = 5, unit = "pt"),
+    plot.tag.position = c(1, 0.5),
+    plot.tag = element_text(size = 13, angle = 270, color = "black", face = "bold")
+  )
+## specific features
+plots_combined[[1]] <- plots_combined[[1]] + 
+  theme(plot.tag.position = c(1, 0.1))
+plots_combined[[2]] <- plots_combined[[2]] + 
+  theme(plot.tag.position = c(1.07, 0.5))
+
+# 5. FINAL PLOT: Graphics + legend
+final_plot <- plot_grid(plots_combined, legend_only, 
+                       ncol = 2, rel_widths = c(2, 2))
+
+final_plot
+```
+
+## Figure 4
+
+### A) Biogeographic position
+
+The only endemic population are the 3 populations from Antirrhinum charidemi, so we grouped them with the isle position.
+
+```{r}
+# gather endemic population into the "isle" category
+FULL_TAB <- FULL_TAB %>% mutate(Biogeographic_pos_pop=case_when(
+                                Biogeographic_pos_pop == "endemic" ~ "isle",
+                                TRUE ~ Biogeographic_pos_pop))
+
+#levels
+FULL_TAB$Biogeographic_pos_pop <- factor(FULL_TAB$Biogeographic_pos_pop, 
+                                            levels=c("core","subedge","edge",
+                                                     "island","isle"))
+```
+
+```{r biogeographic pos NeLD vioplot with stat test}
+FULL_TAB %>% filter(NeLD != 999999) %>%
+ggplot(aes(x = Biogeographic_pos_pop, y = log(NeLD),
+                        fill = Biogeographic_pos_pop)) +
+  geom_violin(adjust = 1, alpha = 0.5, scale = "width") +
+  geom_jitter(aes(shape = Marker_type), size = 2, alpha = 0.8,
+              position = position_jitter(width = 0.1)) +
+  labs(y = "log(NeLD)") +
+  scale_shape_manual(values = shape_Markertype,
+                     name = "Marker type") +
+  scale_fill_manual(values = color_biogeo_pos,
+                    name="Pop. biogeographic position") +
+  scale_y_continuous(
+        #limits = c(0.8, 10.2),
+        breaks = c(log(50), log(500), log(5000)), #, log(999999)
+        labels = c("Ne=50", "Ne=500", "Ne=5000"), #, "Ne=Inf"
+        minor_breaks = NULL)+
+  theme_minimal() +
+  theme(axis.text.x = element_text(size=11),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size=12),
+        legend.title = element_text(size = 11, face = "bold"),
+      legend.text = element_text(size = 9))+
+  
+  # add significant differences between mean
+  geom_signif(comparisons=list(c("core","subedge"),
+                               c("core","edge"),
+                               c("core","island"),
+                               c("core","isle")),
+              #test = "t.test",
+              test = "wilcox.test", #non-parametric test, by default
+              map_signif_level = TRUE,
+              #y_position = c(10,11,12,13))
+              y_position = c(10,10.5,11,11.5))
+```
+
+### B) Regressions of NeLD estimates according to population differentiation statistics across categories
+
+We will not present results for the upper categories of the 2 axes (SlowFs and HighRS) because we do not have enough datasets (or not at all). Plus I will set the same scale for the y axes. In the main text, we only presented the figure with BayesFst statistics, but we also present it here with average pairwise Fst and JostD.
+
+```{r pos plan sum stats and NeLD no empty catego, fig.height=10, fig.width=12, warning=FALSE}
+
+#only keep variable that are not too correlated to another one
+var_to_plot4 <- c("Fst","BayesFst","JostD")
+levels_to_plot <- c("FastFS/HighRS", "IntermFS/HighRS", "FastFS/IntermRS", "IntermFS/IntermRS", "FastFS/LowRS", "IntermFS/LowRS")
+
+for(i in 1:length(var_to_plot4)) {
+      
+      var_y <- var_to_plot4[i]
+
+
+# Create plots
+plots <- lapply(levels_to_plot, function(level_name) {
+  data_subset <- FULL_TAB %>% filter(Catego_LHT_plan == level_name,
+                                     !is.na(NeLD),
+                                     NeLD < 999999)
+
+  #data_subset$Dataset_Markertype <- factor(data_subset$Dataset_Markertype, levels = levels(FULL_TAB$Dataset_Markertype))
+  
+  # Index du plot (pour détecter la colonne dans la grille)
+  idx <- which(levels_to_plot == level_name)
+  
+  # Si dans la 1ère colonne (idx %% 3 == 1), on garde l’axe y visible
+  show_y <- (idx %% 2 == 1)
+  show_x <- (idx >= 5)
+
+  ggplot(data_subset, aes(x=log(NeLD),y=!!sym(var_y),
+                          color=Dataset_Markertype, shape=Marker_type))+
+  geom_point(size=3)+
+  geom_smooth(data = . %>% filter(NeLD < 999999) %>%
+                group_by(Dataset_Markertype) %>%
+                filter(n() > 2) %>%
+                ungroup(),
+            method="lm", se=FALSE)+
+  scale_color_manual(values=colors_DatasetMarker) +
+  scale_shape_manual(values=shape_Markertype)+
+      
+    scale_x_continuous(
+        limits = c(0.2, 10.2),
+        breaks = c(log(50), log(500), log(5000)), #, log(999999)
+        labels = c("Ne=50", "Ne=500", "Ne=5000"), #, "Ne=Inf"
+        minor_breaks = NULL) +
+    
+    scale_y_continuous(limits = c(0, 0.65))+
+    
+    labs(#title = level_name, 
+      y = var_y, 
+        x = expression(log(Ne[LD]))) +
+    theme_minimal() +
+    
+    theme(
+      axis.title.x=if (show_x) element_text() else element_blank(),
+      axis.text.x = if (show_x) element_text(angle = 45, hjust = 1, size = 10) else element_blank(),
+      axis.title.y = if (show_y) element_text() else element_blank(),
+      axis.text.y = if (show_y) element_text() else element_blank(),
+      axis.ticks.y = element_blank(),
+      legend.position="none",
+      plot.title = element_text(size = 10, face = "bold")
+    )
+  
+  })
+
+  # Combine graphics and add the legend
+  plots_combined <- wrap_plots(plots, nrow = 3, ncol = 2)
+    
+  
+  final_plot <- plot_grid(plots_combined, legend_only, 
+                       ncol = 2, rel_widths = 1.5)
+  print(final_plot)
+}
+
+```
+
+## Figure 5 - 3D representation
+
+We are representing NeLD estimates according to the position of species in our categorization framework that includes the categorization of species within the LHT variation plane and a 3rd axis using *BayesFst* values for each population. 
+
+```{r cube Fst Bay with size Ne and legend, fig.width=10, warning=FALSE}
+#1.create a sub dataset with the columns that we are interested in for this figure
+for_the_cube <- FULL_TAB %>% select(Species, Dataset_Markertype,
+                                    BayesFst, NeLD, 
+                                    PC1_educ_guess_spread,PC2_educ_guess_spread)
+levels_variable_numeric <- levels(as.factor(for_the_cube$Dataset_Markertype))
+manual_color_scale <- colors_DatasetMarker[levels_variable_numeric]
+
+#2.Main graphic --> the "cube"
+p1 <- for_the_cube %>% filter(NeLD < 8000) %>% 
+      plot_ly(x = ~PC1_educ_guess_spread, 
+              y = ~PC2_educ_guess_spread, 
+              z = ~BayesFst,
+              color = ~Dataset_Markertype,      
+              colors = manual_color_scale, 
+              size = ~NeLD,
+              type = "scatter3d",
+              mode = "markers",
+              marker = list(sizemin = 10,
+                            sizeref = 2,   
+                            sizemode = "diameter",
+                            opacity = 0.6),
+              showlegend=FALSE) %>%
+    plotly::layout(scene = list(
+      xaxis = list(
+        title = "FS continuum",
+        range = c(-1, 1),
+        tickvals = round(seq(-1, 1, length.out = 4),2),
+        zeroline = FALSE,
+        titlefont = list(size = 12),
+       tickfont = list(size = 10)),
+      yaxis = list(
+        title = "RS continuum",
+        range = c(-1, 1),
+        tickvals = round(seq(-1, 1, length.out = 4),2),
+      zeroline = FALSE,
+      titlefont = list(size = 12),
+       tickfont = list(size = 10)),
+      zaxis = list(
+        title = "BayesFst",
+        range = c(0, 0.7),
+        tickvals = round(seq(0, 0.7, length.out = 4),2),
+      zeroline = FALSE,
+      titlefont = list(size = 12),
+       tickfont = list(size = 10)),
+      # Angle of view
+      camera = list(eye = list(x = 2, y = -2, z = 0.6)),
+      aspectmode = "cube"))
+
+#3.A second graphic with the legend only
+# Values for the scale
+ne_values <- c(100, 500, 1000, 5000)
+
+# To simplify we use a 2D graphic here
+scale_plot <- plot_ly() %>%
+  add_markers(
+    x = rep(1, length(ne_values)),
+    y = ne_values, #y_positions,
+    size = ne_values,
+    marker = list(
+      sizemin = 2,
+      sizeref = 2,   # Same value as principal graphic
+      sizemode = "diameter",
+      opacity = 0.5,
+      color = 'gray'
+    ),
+    text = ~paste("NeLD =", ne_values),
+    hoverinfo = "text",
+    showlegend = FALSE
+  ) %>%
+  layout(
+    title = "",
+    xaxis = list(showticklabels = FALSE, showgrid = FALSE, zeroline = FALSE, title = ""),
+    yaxis = list(showticklabels = FALSE, showgrid = FALSE, zeroline = FALSE, title = ""),
+    margin = list(l = 100, r = 100, t = 50, b = 50)
+  ) %>%
+  add_annotations(
+   x = rep(1, length(ne_values)),
+    y =ne_values, #y_positions,
+    text = paste("NeLD =", ne_values),
+    xanchor = "left",
+    xshift = 30,
+    showarrow = FALSE
+  )
+
+
+# 4.Combine the 2 subplots
+combined3D_FstBay_leg <- subplot(p1, scale_plot, nrows = 1, widths = c(0.8, 0.2), 
+        which_layout = 1) %>%
+  layout(showlegend = TRUE,
+         xaxis2 = list(domain = c(0.7, 0.9)),
+         yaxis2 = list(domain = c(0.3, 0.7)))
+combined3D_FstBay_leg
+
+#save the plot
+#htmlwidgets::saveWidget(combined3D_FstBay_leg, "cube_3D_fstBay.html")
+```
+
+NB: I removed the Infinite estimates for visual purposes. 
+
+You also can choose the angle you're the most interested in as well as zoom in and out. 
+
+
+

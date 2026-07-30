@@ -1,0 +1,28 @@
+Dataset_Markertype;OrganismType;Species;Info_position_LHT_plan;PC1_educ_guess_spread;PC2_educ_guess_spread
+Alytes_obstetricans_Barratt_2024_SSR;Amphibia;Alytes obstetricans;Educated_guess;-0.55;-0.1
+Antirrhinum_charidemi_HeuertzForrest_2024_SSR;Herbaceous perennial;Antirrhinum charidemi;Educated_guess;0.1;-0.75
+Barbastella_barbastellus_Razgour_2024_SNP;Mammalia;Barbastella barbastellus;Educated_guess;-0.55;-0.55
+Canis_lupus_Silva_2018_K11_SSR;Mammalia;Canis lupus;In_Capdevila;0.259853623;0.225220507
+Canis_lupus_Szewczyk_2019_SSR;Mammalia;Canis lupus;In_Capdevila;0.259853623;0.225220507
+Coenagrion_mercuriale_Leveque_2024_pop_2021_SSR;Insecta;Coenagrion mercuriale;Educated_guess;-0.667;0
+Coenagrion_mercuriale_Leveque_2024_pop_2021_SNP;Insecta;Coenagrion mercuriale;Educated_guess;-0.667;0
+Coenagrion_mercuriale_Leveque_2024_pop_2022_SSR;Insecta;Coenagrion mercuriale;Educated_guess;-0.667;0
+Coenagrion_mercuriale_Leveque_2024_pop_2022_SNP;Insecta;Coenagrion mercuriale;Educated_guess;-0.667;0
+Cypripedium_calceolus_Gargiulo_2023_SSR;Herbaceous perennial;Cypripedium calceolus;In_Capdevila;0.778370838;1
+Cypripedium_calceolus_Gargiulo_2023_SNP;Herbaceous perennial;Cypripedium calceolus;In_Capdevila;0.778370838;1
+Fagus_sylvatica_Milesi_2024_SNP;Tree;Fagus sylvatica;Educated_guess;-0.02;-0.02
+Gasterosteus_aculeatus_Raeymaekers_2008_SSR;Actinopterygii;Gasterosteus aculeatus;Educated_guess;-0.667;0
+Graellsia_isabellae_GonzalesCastellano_2023_SSR;Insecta;Graellsia isabellae;Educated_guess;-0.75;-0.75
+Mya_arenaria_DeNoia_2020_SSR;Bivalvia;Mya arenaria;In_Capdevila;-0.247470794;0.716461975
+Passer_domesticus_Baalsrud_2013_pop_1994_SSR;Aves;Passer domesticus;Educated_guess;-0.667;-0.667
+Passer_domesticus_Baalsrud_2013_pop_2000_SSR;Aves;Passer domesticus;Educated_guess;-0.667;-0.667
+Passer_domesticus_Baalsrud_2013_pop_2006_SSR;Aves;Passer domesticus;Educated_guess;-0.667;-0.667
+Passer_domesticus_Hagen_2020_SNP;Aves;Passer domesticus;Educated_guess;-0.667;-0.667
+Pinus_pinaster_Milesi_2024_SNP;Tree;Pinus pinaster;Educated_guess;0.02;0.02
+Pinus_sylvestris_Milesi_2024_SNP;Tree;Pinus sylvestris;In_Capdevila;0.17472677;-0.37639631
+Raja_clavata_Marandel_2020_SNP;Elasmobranchii;Raja clavata;Educated_guess;-0.1;-0.55
+Rana_arvalis_Cox_2024_SSR;Amphibia;Rana arvalis;Educated_guess;-0.75;0.1
+Sardina_pilchardus_Antoniou_2023_SNP;Actinopterygii;Sardina pilchardus;In_Capdevila;-0.269786285;-0.139455689
+Symphonia_globulifera_Schmitt2021_Gargiulo2024_SNP;Tree;Symphonia globulifera;Educated_guess;0.667;0.667
+Ursus_arctos_Kopatz_2021_SSR;Mammalia;Ursus arctos;In_Capdevila;-0.035260669;-0.601055764
+Ursus_arctos_Kopatz_2024_SNP;Mammalia;Ursus arctos;In_Capdevila;-0.035260669;-0.601055764

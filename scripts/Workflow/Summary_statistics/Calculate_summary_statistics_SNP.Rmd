@@ -80,12 +80,14 @@ compute_diversity_stats <- function(filepath) {
     # Heterozygosity
     Hobs <- t(sapply(pops_list, function(ls) {
                                   hobs_vec <- summary(ls)$Hobs
+                                  #to ensure we calculate it for all variants across all populations
                                   length(hobs_vec) <- max_loci
                                   return(hobs_vec)
               }))
     Hexp <- t(sapply(pops_list, function(ls) {
                                   hexp_vec <- summary(ls)$Hexp
-                                  length(hexp_vec) <- max_loci
+                                  #to ensure we calculate it for all variants across all populations
+                                  length(hexp_vec) <- max_loci 
                                   return(hexp_vec)
                                   }))
     
