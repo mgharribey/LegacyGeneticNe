@@ -2756,8 +2756,7 @@ font-size: 0.95em;
 
 
 
-<h1 class="title toc-ignore">Summary statistics for SNPs datasets
-(Genetic data v4)</h1>
+<h1 class="title toc-ignore">Summary statistics for SNPs datasets</h1>
 <h4 class="author">MGH</h4>
 <h4 class="date">2026-02-17</h4>
 
@@ -2772,8 +2771,6 @@ estimates and then averaging for a given population within a dataset:
 Fst, Gst’, Jost’s D</p>
 <div id="set-up" class="section level1" number="1">
 <h1><span class="header-section-number">1</span> Set-up</h1>
-<pre class="r"><code>rm(list=ls())
-setwd(&quot;C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v4&quot;)</code></pre>
 <pre class="r"><code>library(dplyr)
 library(ggplot2)
 library(tidyverse)
@@ -3049,7 +3046,7 @@ write.table(mean_Pairwise_values_by_pop_snps, file=&quot;Summary_statistics/snps
 </div>
 <div id="save-the-data-in-a-single-tab" class="section level1" number="4">
 <h1><span class="header-section-number">4</span> Save the data in a
-single tab</h1>
+single table</h1>
 <p>Gather the tabs in a single one</p>
 <p>Add this to the summary diversity statistics</p>
 <pre class="r"><code>Summary_div_stats &lt;- read.csv(&quot;Summary_statistics/snps_summary_div_stats.csv&quot;)

@@ -24,7 +24,7 @@ knitr::opts_chunk$set(echo = TRUE,
 ```{r}
 rm(list=ls(all=TRUE))
 #!!!!! Change directory according your own directory !!!!!
-setwd("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Fst_bayescan")
+#setwd()
 ```
 
 ```{r}

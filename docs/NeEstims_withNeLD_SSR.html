@@ -2781,9 +2781,6 @@ different output files and store them in a single table with .csv. This
 table will allow to analyze easily the results.</p>
 <div id="set-up" class="section level1" number="1">
 <h1><span class="header-section-number">1</span> Set-up</h1>
-<pre class="r"><code>rm(list=ls(all=TRUE))
-#!!!!! Change directory according your own directory !!!!!
-setwd(&quot;C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/NeEstimations&quot;)</code></pre>
 <pre class="r"><code>library(graph4lg)
 library(RLDNe)
 library(dartR)
@@ -2942,15 +2939,9 @@ for (i in full_microsat_files) {
 #cleaning
 rm(end_index,start_index,estimated_Ne,JK_CI_down,JK_CI_up,lines,table_lines,text_file)
 
-# get tab in form
+# get table in good shape
 Ne_estim_microsat &lt;- as.data.frame(Ne_estim_microsat) %&gt;%
   mutate(across(c(&quot;NeLD&quot;,&quot;JK_CI_down&quot;,&quot;JK_CI_up&quot;,&quot;Overall_LD_r2&quot;,&quot;Expected_LD_r2&quot;), as.numeric))#careful turn Inf values in NA</code></pre>
-<pre><code>## Warning: There were 3 warnings in `mutate()`.
-## The first warning was:
-## ℹ In argument: `across(...)`.
-## Caused by warning:
-## ! NAs introduits lors de la conversion automatique
-## ℹ Run `dplyr::last_dplyr_warnings()` to see the 2 remaining warnings.</code></pre>
 <pre class="r"><code>Ne_estim_microsat$Marker_type &lt;- &quot;microsat&quot;</code></pre>
 <p>You can chek your newly created dataset</p>
 <pre class="r"><code>head(Ne_estim_microsat)</code></pre>

@@ -34,9 +34,9 @@ knitr::opts_chunk$set(echo = TRUE,
   eval=FALSE) 
 ```
 
-```{r}
+```{r, echo=FALSE}
 rm(list=ls())
-setwd("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Genetic_data_v4")
+#setwd()
 ```
 
 ```{r, warning=FALSE, message=FALSE}

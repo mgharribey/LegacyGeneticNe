@@ -358,7 +358,7 @@ display: none;
 
 
 <p>Here the point of this code is to prepare the files to run Bayescan
-(that will be done on the cluster though!)</p>
+(that will be done using a high computation cluster though!)</p>
 <p>So my idea is to get genepop files from my genind objects containing
 full information of the different datasets and then use a .sh code with
 the PGDSpider pilot to transform these Genepop files into Bayescan
@@ -369,9 +369,6 @@ population of a given dataset.</p>
 code to gather everything automatically in a single table of result.</p>
 <div id="set-up" class="section level1">
 <h1>Set-up</h1>
-<pre class="r"><code>rm(list=ls(all=TRUE))
-#!!!!! Change directory according your own directory !!!!!
-setwd(&quot;C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/Summary_stats_genetic/Fst_bayescan&quot;)</code></pre>
 <pre class="r"><code>library(graph4lg)
 library(adegenet)
 library(dartR)
@@ -792,10 +789,10 @@ for (i in snps_bayescan_list){
   rm(nb_iter,nb_pop,beta_acrte,ances_acrte)
 }</code></pre>
 <p>Checked the distribution plots –&gt; in the vast majority of
-populations, distribution of values seems normal. So I can use the mean
+populations, distribution of values looks normal. So we can use the mean
 Fst for all the populations.</p>
-<p>For the Markov Chains, seem good too, with a good repartition of
-points, mean the chains converge well</p>
+<p>For the Markov Chains, it seems good too, with a good repartition of
+points, meaning that the chains converged well</p>
 <p>The acceptance rates are between 0.2 and 0.25 in a lot cases (both
 for beta and alpha)… Foll &amp; Gaggiotti suggest to have between 0.25
 and 0.45 acceptance rates, but not a lot of details in the bibliography.

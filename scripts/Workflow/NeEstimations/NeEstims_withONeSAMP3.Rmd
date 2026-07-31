@@ -38,9 +38,9 @@ min        max        mean        median      lower95CL   upper95CL
 
 # Set-up
 
-```{r, include=FALSE}
-rm(list=ls())
-setwd("C:/Users/mgharribey/Documents/These_BIOGECO/Article1/analyses_article1/NeEstimations")
+```{r, echo=FALSE}
+rm(list=ls())#clean your workspace
+#setwd()
 ```
 
 ```{r, warning=FALSE}
