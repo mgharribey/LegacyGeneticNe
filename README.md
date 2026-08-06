@@ -4,7 +4,8 @@ This repository contains the main scripts and associated workflows from the publ
 
 ***Mapping effective population size across a three-dimensional life-history framework of species and populations to support broad-scale Ne500 indicator implementation***
  
-$\small\text{by Marie-Gabrielle Harribey, Joachim Mergeay, Anja Westram, Laura Martínez Antón, Xiatong Cai, Julia Geue, Frédéric Raspail, Peter Galbusera, Sean Hoban, Alexander Kopatz, Linda Laikre, Gernot Segelbacher, Cristiano Vernesi, Christina Hvilsom, Joost Raeymaekers , Myriam Heuertz, Pauline Garnier-Géré}$
+$\small\text{by Marie-Gabrielle Harribey, Joachim Mergeay, Anja Westram, Laura Martínez Antón, Xiatong Cai, Julia Geue, Frédéric Raspail, Peter Galbusera,}$ 
+$\small\text{Sean Hoban, Alexander Kopatz, Linda Laikre, Gernot Segelbacher, Cristiano Vernesi, Christina Hvilsom, Joost Raeymaekers , Myriam Heuertz, Pauline Garnier-Géré}$
 
 
 Starting from the life-history traits (LHT) variation plane described in previous multivariate analyses of demographic life tables (among which Capdevila et al. 2021, and see COMPADRE/COMADRE Databases, Salguero-Gómez et al. 2015, 2016), we tested the robustness of the species coordinates and thus of trait correlations across the first 2 principal axes: the **Fast-slow continuum** strongly correlated to generation time or age at sexual maturity and the **Reproductive strategies** continuum strongly correlated to the spread of reproduction throughout lifespan and the mean reproductive output. 
