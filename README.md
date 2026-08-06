@@ -4,7 +4,7 @@ This repository contains the main scripts and associated workflows from the publ
 
 ***Mapping effective population size across a three-dimensional life-history framework of species and populations to support broad-scale Ne500 indicator implementation***
  
-$\small\mathsf{\text{by Marie-Gabrielle Harribey, Joachim Mergeay, Anja Westram, Laura Martínez Antón, Xiatong Cai, Julia Geue, Frédéric Raspail, Peter Galbusera,}$ 
+$\small\mathsf{\text{by Marie-Gabrielle Harribey, Joachim Mergeay, Anja Westram, Laura Martínez Antón, Xiatong Cai, Julia Geue, Frédéric Raspail, Peter Galbusera,}}$ 
 $\small\mathsf{\text{Sean Hoban, Alexander Kopatz, Linda Laikre, Gernot Segelbacher, Cristiano Vernesi, Christina Hvilsom, Joost Raeymaekers , Myriam Heuertz, }}$
 $\small\mathsf{\text{Pauline Garnier-Géré}}$
 
