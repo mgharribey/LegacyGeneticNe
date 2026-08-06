@@ -1,12 +1,12 @@
 # Construction of the 3D - categorization LHT framework
 
-This repository contains the main scripts and associated workflows from the publication [Harribey et al. *in prep.*](*LINK TO ADD*):
+This repository contains the main scripts and associated workflows from the publication Harribey et al. *in prep.*(*LINK TO ADD*):
 
-*Mapping effective population size across a three-dimensional life-history framework of species and populations to support broad-scale Ne500 indicator implementation*
+***Mapping effective population size across a three-dimensional life-history framework of species and populations to support broad-scale Ne500 indicator implementation***
  
-<small>Marie-Gabrielle Harribey, Joachim Mergeay, Anja Westram, Laura Martínez Antón, Xiatong Cai, Julia Geue, Frédéric Raspail, Peter Galbusera, Sean Hoban, Alexander Kopatz, Linda Laikre, Gernot Segelbacher, Cristiano Vernesi, Christina Hvilsom, Joost Raeymaekers , Myriam Heuertz, Pauline Garnier-Géré<small>
+<small>by Marie-Gabrielle Harribey, Joachim Mergeay, Anja Westram, Laura Martínez Antón, Xiatong Cai, Julia Geue, Frédéric Raspail, Peter Galbusera, Sean Hoban, Alexander Kopatz, Linda Laikre, Gernot Segelbacher, Cristiano Vernesi, Christina Hvilsom, Joost Raeymaekers , Myriam Heuertz, Pauline Garnier-Géré</small>
 
-Starting from the life-history traits (LHT) variation plane described in previous multivariate analyses of demographic life tables (among which Capdevila et al. 2021, and see COMPADRE and COMADRE Databases, Salguero-Gómez et al. 2015, 2016), we tested the robustness of the species coordinates and thus of trait correlations across the first 2 principal axes: the **Fast-slow continuum** strongly correlated to generation time or age at sexual maturity and the **Reproductive strategies** continuum strongly correlated to the spread of reproduction throughout lifespan and the mean reproductive output. 
+Starting from the life-history traits (LHT) variation plane described in previous multivariate analyses of demographic life tables (among which Capdevila et al. 2021, and see COMPADRE/COMADRE Databases, Salguero-Gómez et al. 2015, 2016), we tested the robustness of the species coordinates and thus of trait correlations across the first 2 principal axes: the **Fast-slow continuum** strongly correlated to generation time or age at sexual maturity and the **Reproductive strategies** continuum strongly correlated to the spread of reproduction throughout lifespan and the mean reproductive output. 
 
 We proposed nine categories across those 2 axes for different range of LHTs variation, which, combined with a third axis including **population-specific differentiation within species**, constitutes the basis of our **species by population 3D categorizing framework**. 
 
@@ -16,8 +16,8 @@ Main related analyses can be found [here](https://mgharribey.github.io/LegacyGen
 
 ## Genetic analyses workflows for mapping across the third axis of the framework
 
-The workflows includes different steps hereafter (scripts [here](https://github.com/mgharribey/LegacyGeneticNe/blob/main/scripts))
-This part of the workflow has been implemented as automatic pipelines into the [Galaxy-Ecology platform](https://usegalaxy.eu/workflows/list_published?owner=ginamo). It contains the following steps:
+The workflows includes different steps hereafter (scripts [here](https://github.com/mgharribey/LegacyGeneticNe/blob/main/scripts)).
+This part of the workflow has been implemented as automatic pipelines into the [Galaxy-Ecology platform](https://usegalaxy.eu/workflows/list_published?owner=ginamo), described by Martínez Antón et al. *in prep.*(*LINK TO ADD*). It contains the following steps:
 
 ### 1. SNP data filtering
 
@@ -29,7 +29,7 @@ Filtering was performed with bcftools (Danecek et al. 2021) with thresholds upon
 
 ### 2. Calculation of genetic EBV (Essential Biodiversity Variables) 
 
-NB: The initial step of delimiting populations in legacy datasets is explained in the material and methods and supplementary material of the publication , and scripts are available here for [SSR](https://mgharribey.github.io/LegacyGeneticNe/docs/SSR_checking_microsat_files.html) and [SNP](https://mgharribey.github.io/LegacyGeneticNe/docs/SNP_Filt_pop_assignation_transfo_VCF_Genind.html) data. since the delimitation of population has been tailored to each Legacy dataset included, this part has not been automatized in the Galaxy-Ecology workflow, which however include decision-making tools for helping to delimit populations. 
+NB: The initial step of delimiting populations in legacy datasets is explained in the material and methods and supplementary material of the publication, and scripts are available here for [SSR](https://mgharribey.github.io/LegacyGeneticNe/docs/SSR_checking_microsat_files.html) and [SNP](https://mgharribey.github.io/LegacyGeneticNe/docs/SNP_Filt_pop_assignation_transfo_VCF_Genind.html) data. Since the delimitation of population has been tailored to each Legacy dataset included, this part has not been automatized in the Galaxy-Ecology workflow, which however include [decision-making tools for helping to delimit populations](*LINK TO ADD*). 
 
 You can also find the codes to compute:
 - Genetic summary statistics for [SSR data](https://mgharribey.github.io/LegacyGeneticNe/docs/Calculate_summary_statistics_SSR.html) and [SNP data](https://mgharribey.github.io/LegacyGeneticNe/docs/Calculate_summary_statistics_SNP.html), with a parallelization process in R, reducing computation time
@@ -55,7 +55,6 @@ Codes to reproduce the main figures from the article can be found [here](https:/
 ## Data statement
 
 All datasets used for this study are published data, you can find their references and original repositories in Table S4. 
-
 Data have been reformatted and converted into both SNP and SSR specific formats for analyses.
 
 
